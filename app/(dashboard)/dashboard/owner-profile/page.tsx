@@ -236,9 +236,10 @@ export default function OwnerProfile() {
         <div className="mt-12 p-8 bg-zinc-900/50 border border-white/5 rounded-[3rem] text-center shadow-2xl">
           <div className="flex flex-col md:flex-row items-center justify-around gap-8">
             <div className="bg-white p-4 rounded-[2rem] shadow-[0_0_50px_rgba(255,255,255,0.05)]">
+              {/* 🔥🔥 YAHAN CHANGE KIYA HAI: localhost ko hatakar LIVE LINK dala hai 🔥🔥 */}
               <QRCodeSVG
                 id="shop-qr-owner"
-                value={`http://localhost:3000/shop/${auth.currentUser?.uid}`}
+                value={`https://jewellery-saas.vercel.app/shop/${auth.currentUser?.uid}`}
                 size={160}
                 level={"H"}
               />
