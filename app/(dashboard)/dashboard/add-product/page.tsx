@@ -14,38 +14,88 @@ export default function AddProductPage() {
   const [metalType, setMetalType] = useState(""); 
   const [makingCharge, setMakingCharge] = useState(""); 
   const [isTopSeller, setIsTopSeller] = useState(false); 
-  
   const [gst, setGst] = useState(""); 
   
   const [isUploading, setIsUploading] = useState(false);
   const router = useRouter();
 
+  // 🔥 THE SMART TRICK: Canvas Formatting (No AI, No Cost, 100% Reliable) 🔥
+  const formatPremiumImage = (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d')!;
+        
+        // Premium Square Resolution
+        const size = 1080;
+        canvas.width = size;
+        canvas.height = size;
+
+        // Premium Light Pink Background
+        ctx.fillStyle = '#FFF0F5'; // LavenderBlush (Very light pink)
+        ctx.fillRect(0, 0, size, size);
+
+        // Padding (Zoom Out effect)
+        const padding = 150; 
+        const drawSize = size - (padding * 2);
+
+        // Center align and fit the image
+        const ratio = Math.min(drawSize / img.width, drawSize / img.height);
+        const finalWidth = img.width * ratio;
+        const finalHeight = img.height * ratio;
+        const x = (size - finalWidth) / 2;
+        const y = (size - finalHeight) / 2;
+
+        // Draw original image over the pink background
+        ctx.drawImage(img, x, y, finalWidth, finalHeight);
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], "premium-formatted.jpg", { type: "image/jpeg" }));
+          } else {
+            resolve(file); // fallback
+          }
+        }, 'image/jpeg', 0.9);
+      };
+    });
+  };
+
   const handleFileUpload = async (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
-    setIsUploading(true);
-    
-    const CLOUD_NAME = "dsbn7qlu9"; 
-    const UPLOAD_PRESET = "jewellery_preset"; 
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", UPLOAD_PRESET);
+    setIsUploading(true); 
 
     try {
+      // 1. Format the image directly in the browser instantly
+      const formattedFile = await formatPremiumImage(file);
+
+      // 2. Upload to Cloudinary
+      const CLOUD_NAME = "dsbn7qlu9"; 
+      const UPLOAD_PRESET = "jewellery_preset"; 
+
+      const formData = new FormData();
+      formData.append("file", formattedFile);
+      formData.append("upload_preset", UPLOAD_PRESET);
+
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
         { method: "POST", body: formData }
       );
       const data = await response.json();
+      
       if (data.secure_url) {
         setUrl(data.secure_url); 
-        alert("✅ Photo Ready!");
+        alert("✅ Premium Photo Ready!");
       } else {
-        alert("Galti: " + (data.error?.message || "Check Preset"));
+        alert("Upload Error: " + (data.error?.message || "Check Preset"));
       }
     } catch (err) {
-      alert("Network Error!");
+      console.error(err);
+      alert("Something went wrong during formatting/uploading.");
     } finally {
       setIsUploading(false);
     }
@@ -99,7 +149,6 @@ export default function AddProductPage() {
              <option value="Bracelets">⌚ Bracelets</option>
              <option value="Mangalsutra">🔱 Mangalsutra</option>
              <option value="Anklets">👣 Anklets</option>
-             {/* 🔥 YAHAN PROBLEM THI JO AB THEEK HO GAYI HAI 🔥 */}
              <option value="Chain">📿 Chain</option>
              <option value="Pendant">✨ Pendant</option>
           </select>
@@ -174,13 +223,13 @@ export default function AddProductPage() {
                   <span className="absolute -top-3 -right-3 bg-green-500 text-white p-2 rounded-full text-xs animate-bounce shadow-lg">✅</span>
                 </div>
             ) : (
-                <p className="text-[10px] font-black text-zinc-500 mb-4 tracking-widest uppercase">
-                  {isUploading ? "UPLOADING TO CLOUD..." : "READY TO SHOOT"}
+                <p className={`text-[10px] font-black mb-4 tracking-widest uppercase ${isUploading ? "text-yellow-500 animate-pulse" : "text-zinc-500"}`}>
+                  {isUploading ? "☁️ FORMATTING & UPLOADING..." : "READY TO SHOOT"}
                 </p>
             )}
             
             <div className="mt-2">
-              <label className="cursor-pointer bg-zinc-900 text-yellow-500 px-10 py-5 rounded-2xl text-xs font-black uppercase hover:bg-black transition-all inline-block shadow-xl active:scale-95">
+              <label className={`cursor-pointer px-10 py-5 rounded-2xl text-xs font-black uppercase inline-block shadow-xl transition-all ${isUploading ? "bg-zinc-300 text-zinc-500 pointer-events-none" : "bg-zinc-900 text-yellow-500 hover:bg-black active:scale-95"}`}>
                 {isUploading ? "Please Wait..." : "📸 Upload Photo / Camera"}
                 <input type="file" onChange={handleFileUpload} hidden accept="image/*" />
               </label>
