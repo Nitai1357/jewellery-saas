@@ -3,23 +3,26 @@ import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
-import { Search, Package, CheckCircle2, Clock, ArrowLeft } from "lucide-react";
+import { Search, Package, CheckCircle2, Clock, ArrowLeft, Download } from "lucide-react";
 import { useParams } from "next/navigation";
 
 export default function TrackOrderPage() {
-  const { id } = useParams(); // URL se Shop ID mil jayegi
+  const { id } = useParams(); 
   const [mobile, setMobile] = useState("");
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  
+  const [shopData, setShopData] = useState<any>(null);
   const [shopName, setShopName] = useState("The Boutique");
 
-  // Shop ka naam fetch karne ke liye
   useEffect(() => {
     if (id) {
       getDoc(doc(db, "users", id as string)).then(snap => {
-        if (snap.exists() && snap.data().shopName) {
-          setShopName(snap.data().shopName);
+        if (snap.exists()) {
+          const data = snap.data();
+          setShopData(data);
+          setShopName(data.shopName || "The Boutique");
         }
       });
     }
@@ -36,21 +39,25 @@ export default function TrackOrderPage() {
     setSearched(false);
     
     try {
-      // 🔥 YAHAN HAI MAGIC LOGIC: Sirf isi shop ke orders, aur is customer ke orders
+      // 🔥 FIX: Firebase Index Error se bachne ke liye sirf mobile se filter karenge
       const q = query(
         collection(db, "online_orders"), 
-        where("shopId", "==", id),       // Shop filter
-        where("mobile", "==", mobile)    // Customer filter
+        where("mobile", "==", mobile)    
       );
       
       const querySnapshot = await getDocs(q);
-      const fetchedOrders = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      
+      // 🔥 AUR YAHAN JS mein hum usko Current Shop ID se match kar lenge (No index required!)
+      const fetchedOrders = querySnapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter((order: any) => order.shopId === id); // Sirf is dukaan ke orders rakho
 
-      // Sort by newest first
+      // Naye orders upar dikhane ke liye sort
       fetchedOrders.sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      
       setOrders(fetchedOrders);
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -61,10 +68,110 @@ export default function TrackOrderPage() {
     }
   };
 
-  const formatDate = (timestamp: any) => {
+  const formatDateForDisplay = (timestamp: any) => {
     if (!timestamp) return "N/A";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp.seconds * 1000);
     return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  // 🔥 100% SAME-TO-SAME INVOICE GENERATOR 🔥
+  const handleDownloadInvoice = async (order: any) => {
+    try {
+      const { jsPDF } = await import("jspdf");
+      const autoTable = (await import("jspdf-autotable")).default; 
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      let yPos = 20;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Invoice No: INV-${order.id.slice(0, 6).toUpperCase()}`, 14, yPos);
+      yPos += 8;
+
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text(shopName.toUpperCase(), 14, yPos);
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(shopData?.address || "BBSR", 14, yPos);
+      yPos += 5;
+      doc.text(`Phone: ${shopData?.mobile || "N/A"}`, 14, yPos);
+      yPos += 5;
+      doc.text(`Payment Mode: Pay at Boutique`, 14, yPos);
+      yPos += 10;
+
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("TAX INVOICE", pageWidth / 2, yPos, { align: "center" });
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const orderDate = order.createdAt?.seconds ? new Date(order.createdAt.seconds * 1000) : new Date();
+      const dateStr = `${orderDate.getDate()}/${orderDate.getMonth() + 1}/${orderDate.getFullYear()}`;
+      doc.text(`Date: ${dateStr}`, pageWidth - 14, yPos, { align: "right" });
+      yPos += 10;
+
+      doc.setFont("helvetica", "bold");
+      doc.text("Billed To:", 14, yPos);
+      yPos += 6;
+
+      const customerFullName = order.customerName || order.customer || order.name || "CUSTOMER";
+      doc.text(customerFullName.toUpperCase(), 14, yPos);
+      yPos += 5;
+
+      doc.setFont("helvetica", "normal");
+      doc.text(`Phone: ${order.mobile}`, 14, yPos);
+      yPos += 5;
+
+      const splitAddress = doc.splitTextToSize(order.address || "N/A", 80);
+      doc.text(splitAddress, 14, yPos);
+      yPos += (splitAddress.length * 5) + 5;
+
+      const tableData = order.items?.map((item: any, index: number) => {
+        return [
+          (index + 1).toString(),
+          `${item.name}\n(${item.metalType || 'Silver'})`,
+          item.weight ? `${item.weight}g` : "-",
+          "Rs. 0",
+          item.makingCharge ? `Rs. ${item.makingCharge}` : "Rs. 0",
+          item.gst ? `${item.gst}%` : "-",
+          `Rs. ${item.price?.toLocaleString('en-IN') || 0}`
+        ];
+      }) || [];
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['S/N', 'Item Details', 'Weight', 'Metal Value', 'Making Chg', 'GST Applied', 'Total']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', lineWidth: 0.1, lineColor: [0, 0, 0] },
+        bodyStyles: { textColor: [0, 0, 0], lineWidth: 0.1, lineColor: [0, 0, 0] },
+        styles: { fontSize: 9, cellPadding: 3 },
+      });
+
+      const finalY = (doc as any).lastAutoTable.finalY + 10;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text("Total amount includes all applicable taxes and making charges.", 14, finalY);
+      
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Grand Total: Rs. ${order.totalAmount?.toLocaleString('en-IN') || 0}`, 14, finalY + 10);
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text("Thank you for shopping with us!", 14, finalY + 25);
+      doc.text("This is a computer-generated tax invoice. No signature is required.", 14, finalY + 31);
+
+      doc.save(`Invoice_${order.id.slice(0, 6)}.pdf`);
+    } catch (error) {
+      console.error("PDF Error:", error);
+      alert("Failed to generate PDF. Make sure jspdf and jspdf-autotable are installed.");
+    }
   };
 
   return (
@@ -130,10 +237,9 @@ export default function TrackOrderPage() {
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-gray-50 pb-6">
                           <div>
                             <p className="text-[9px] font-sans uppercase tracking-[0.2em] text-gray-400 mb-2">Order ID: #{order.id.slice(0, 8).toUpperCase()}</p>
-                            <p className="text-sm font-serif tracking-widest text-[#111111]">{formatDate(order.createdAt)}</p>
+                            <p className="text-sm font-serif tracking-widest text-[#111111]">{formatDateForDisplay(order.createdAt)}</p>
                           </div>
                           
-                          {/* Live Status Pill */}
                           <div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full border ${isCompleted ? 'bg-green-50 border-green-100 text-green-700' : 'bg-orange-50 border-orange-100 text-orange-600'}`}>
                             {isCompleted ? <CheckCircle2 size={16} /> : <Clock size={16} className="animate-pulse" />}
                             <span className="text-[9px] font-sans font-bold uppercase tracking-[0.2em]">
@@ -142,7 +248,6 @@ export default function TrackOrderPage() {
                           </div>
                         </div>
 
-                        {/* Order Items */}
                         <div className="space-y-6 mb-10">
                           <p className="text-[9px] font-sans font-bold uppercase tracking-[0.2em] text-gray-400 mb-4">Items Included</p>
                           {order.items?.map((item: any, idx: number) => (
@@ -161,17 +266,26 @@ export default function TrackOrderPage() {
                           ))}
                         </div>
 
-                        {/* Total & Delivery Address */}
                         <div className="bg-[#FAFAFA] p-6 md:p-8 rounded-2xl flex flex-col md:flex-row justify-between gap-6 items-center md:items-end">
                           <div className="max-w-xs text-center md:text-left">
                             <p className="text-[9px] font-sans font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Delivery Address</p>
                             <p className="text-xs font-sans text-gray-500 leading-relaxed tracking-wider">{order.address}</p>
                           </div>
-                          <div className="text-center md:text-right">
+                          
+                          <div className="text-center md:text-right flex flex-col items-center md:items-end">
                             <p className="text-[9px] font-sans font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Grand Total</p>
-                            <p className="text-2xl md:text-3xl font-serif italic tracking-widest text-[#111111]">
+                            <p className="text-2xl md:text-3xl font-serif italic tracking-widest text-[#111111] mb-4">
                               ₹{order.totalAmount?.toLocaleString('en-IN')}
                             </p>
+                            
+                            {isCompleted && (
+                              <button 
+                                onClick={() => handleDownloadInvoice(order)}
+                                className="flex items-center gap-2 bg-white border border-gray-200 hover:border-black text-black px-5 py-2.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all shadow-sm hover:shadow-md"
+                              >
+                                <Download size={14} /> Download Invoice
+                              </button>
+                            )}
                           </div>
                         </div>
 

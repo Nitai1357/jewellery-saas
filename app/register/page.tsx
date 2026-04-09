@@ -134,7 +134,7 @@ export default function RegisterPage() {
 
         <p className="text-center text-zinc-500 mt-8 text-xs font-medium">
           Already have a boutique profile?{" "}
-          <Link href="/login" className="text-yellow-500 hover:text-yellow-400 font-bold ml-1">Log in here</Link>
+          <Link href="/dashboard" className="text-yellow-500 hover:text-yellow-400 font-bold ml-1">Log in here</Link>
         </p>
 
       </div>

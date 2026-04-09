@@ -11,10 +11,11 @@ export default function OwnerProfile() {
   const [loading, setLoading] = useState(false);
   const [uploadingField, setUploadingField] = useState<string | null>(null); 
 
+  // 🔥 NAYA: customDomain state mein add kiya hai
   const [shopData, setShopData] = useState({
     shopName: "", ownerName: "", mobile: "", dob: "", email: "",
     bannerUrl: "", address: "", whatsapp: "", mapLink: "", facebook: "",
-    logoUrl: "", qrUrl: "", upiId: "" 
+    logoUrl: "", qrUrl: "", upiId: "", customDomain: "" 
   });
   const router = useRouter();
 
@@ -37,20 +38,17 @@ export default function OwnerProfile() {
     if (isClient) fetchProfile();
   }, [isClient]);
 
-  // 🔥 NEW FUNCTION: CLOUDINARY UPLOAD LOGIC 🔥
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'logoUrl' | 'qrUrl' | 'bannerUrl') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploadingField(field); // Start loading animation
+    setUploadingField(field); 
 
-    // Cloudinary FormData Setup
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("upload_preset", "jewellery_preset"); // Screenshot se liya gaya preset name
+    formData.append("upload_preset", "jewellery_preset"); 
 
     try {
-      // Screenshot se liya gaya Cloud Name: dsbn7qlu9
       const response = await fetch("https://api.cloudinary.com/v1_1/dsbn7qlu9/image/upload", {
         method: "POST",
         body: formData,
@@ -59,7 +57,6 @@ export default function OwnerProfile() {
       const data = await response.json();
 
       if (data.secure_url) {
-        // Naya Cloudinary URL state mein save kar do
         setShopData(prev => ({ ...prev, [field]: data.secure_url }));
         alert("✅ Image successfully uploaded to Cloudinary!");
       } else {
@@ -69,19 +66,40 @@ export default function OwnerProfile() {
       console.error("Cloudinary Upload Error:", error);
       alert("Upload failed. Please check console.");
     } finally {
-      setUploadingField(null); // Stop loading animation
+      setUploadingField(null); 
     }
   };
 
+  // 🔥 YAHAN UPDATE KIYA HAI: Vercel API wala Naya Logic 🔥
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth.currentUser) return;
     setLoading(true);
+    
     try {
+      // 1. Firebase me save karna (Purana logic)
       const docRef = doc(db, "users", auth.currentUser.uid);
       await updateDoc(docRef, { ...shopData });
-      alert("Brand Aesthetics Saved Successfully! 💎");
+
+      // 🔥 2. Vercel ko naya domain batana (Naya logic) 🔥
+      if (shopData.customDomain) {
+        const res = await fetch('/api/add-domain', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain: shopData.customDomain })
+        });
+        
+        const vercelData = await res.json();
+        if (!res.ok) {
+          console.error("Vercel Domain Error:", vercelData.error);
+          alert(`Database me save ho gaya, par Vercel error: ${vercelData.error}`);
+          return;
+        }
+      }
+
+      alert("Brand Aesthetics & Domain Setup Successfully! 💎");
     } catch (err) {
+      console.error(err);
       alert("Error saving data");
     } finally {
       setLoading(false);
@@ -156,10 +174,6 @@ export default function OwnerProfile() {
             <h2 className="text-xs font-black uppercase text-yellow-500/50 mb-6 tracking-[0.3em]">Marketing & Luxury Assets</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
-              
-              
-
-              {/* 🔥 BRAND LOGO CLOUDINARY UPLOAD 🔥 */}
               <div className="space-y-2">
                 <label className="text-[8px] font-black uppercase text-zinc-500 ml-4 tracking-widest flex justify-between">
                   <span>Brand Logo (PNG Recommended)</span>
@@ -200,7 +214,6 @@ export default function OwnerProfile() {
             <h2 className="text-xs font-black uppercase text-yellow-500/50 mb-6 tracking-[0.3em]">Payment & Checkout Configuration</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
-              {/* 🔥 QR CODE CLOUDINARY UPLOAD 🔥 */}
               <div className="space-y-2">
                 <label className="text-[8px] font-black uppercase text-zinc-500 ml-4 tracking-widest flex justify-between">
                   <span>Payment QR Code Image</span>
@@ -222,11 +235,41 @@ export default function OwnerProfile() {
             <p className="text-[9px] text-zinc-500 mt-4 italic ml-2">Note: This QR code and UPI ID will be shown to customers on the checkout page.</p>
           </div>
 
+          {/* 🔥 SECTION 4: NEW PREMIUM CUSTOM DOMAIN 🔥 */}
+          <div className="bg-gradient-to-br from-yellow-900/10 to-zinc-900/40 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-yellow-500/30 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-yellow-500 text-black text-[8px] font-black uppercase tracking-widest px-4 py-2 rounded-bl-2xl">Premium Feature</div>
+            
+            <h2 className="text-xs font-black uppercase text-yellow-500 mb-2 tracking-[0.3em]">Custom Domain Integration</h2>
+            <p className="text-[10px] text-zinc-400 mb-6 font-bold tracking-widest uppercase">Connect your own web address (e.g., www.yourshop.com)</p>
+
+            <div className="space-y-5">
+              <div className="space-y-1">
+                <label className="text-[8px] font-black uppercase text-zinc-500 ml-4 tracking-widest">Your Purchased Domain</label>
+                <input 
+                  type="text" 
+                  value={shopData.customDomain || ""} 
+                  // Http/https hata dene ke liye replace logic laga diya hai
+                  onChange={(e)=>setShopData({...shopData, customDomain: e.target.value.toLowerCase().replace('https://', '').replace('http://', '').replace(/\s+/g, '')})}
+                  className="w-full p-4 bg-black/50 border border-yellow-500/30 rounded-2xl outline-none font-bold text-sm text-yellow-500 focus:bg-yellow-500/5 transition-colors placeholder:text-zinc-700" 
+                  placeholder="www.maasaralajewellery.com" 
+                />
+              </div>
+
+              <div className="bg-black/40 p-5 rounded-2xl border border-white/5">
+                <p className="text-[9px] text-zinc-400 font-bold tracking-wider leading-relaxed">
+                  <span className="text-yellow-500 block mb-2">⚡ IMPORTANT DOMAIN SETUP:</span> 
+                  To connect your domain, login to your provider (GoDaddy, Hostinger, etc.) and add a new <span className="text-white">CNAME record</span> pointing to:
+                  <span className="block bg-zinc-800 text-yellow-500 px-4 py-3 rounded-xl mt-2 font-mono text-xs select-all text-center tracking-widest border border-zinc-700">cname.vercel-dns.com</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* SAVE BUTTON */}
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full py-6 bg-gradient-to-r from-yellow-700 to-yellow-500 text-black font-black rounded-3xl shadow-2xl uppercase text-xs tracking-[0.4em] italic active:scale-95 transition-all"
+            className="w-full py-6 bg-gradient-to-r from-yellow-700 to-yellow-500 text-black font-black rounded-3xl shadow-2xl uppercase text-xs tracking-[0.4em] italic active:scale-95 transition-all hover:shadow-[0_0_30px_rgba(234,179,8,0.3)]"
           >
             {loading ? "Synchronizing Data..." : "Save Brand Aesthetics"}
           </button>
@@ -236,7 +279,6 @@ export default function OwnerProfile() {
         <div className="mt-12 p-8 bg-zinc-900/50 border border-white/5 rounded-[3rem] text-center shadow-2xl">
           <div className="flex flex-col md:flex-row items-center justify-around gap-8">
             <div className="bg-white p-4 rounded-[2rem] shadow-[0_0_50px_rgba(255,255,255,0.05)]">
-              {/* 🔥🔥 YAHAN CHANGE KIYA HAI: localhost ko hatakar LIVE LINK dala hai 🔥🔥 */}
               <QRCodeSVG
                 id="shop-qr-owner"
                 value={`https://jewellery-saas.vercel.app/shop/${auth.currentUser?.uid}`}

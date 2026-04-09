@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { db, auth } from "@/lib/firebase"; 
 import { collection, addDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
@@ -17,9 +17,15 @@ export default function AddProductPage() {
   const [gst, setGst] = useState(""); 
   
   const [isUploading, setIsUploading] = useState(false);
+  
+  // 🔥 NAYA: Camera/Gallery Modal ke states aur refs
+  const [showPicker, setShowPicker] = useState(false);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  
   const router = useRouter();
 
-  // 🔥 THE SMART TRICK: Canvas Formatting (No AI, No Cost, 100% Reliable) 🔥
+  // 🔥 THE SMART TRICK: Canvas Formatting 🔥
   const formatPremiumImage = (file: File): Promise<File> => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -35,11 +41,11 @@ export default function AddProductPage() {
         canvas.height = size;
 
         // Premium Light Pink Background
-        ctx.fillStyle = '#FFF0F5'; // LavenderBlush (Very light pink)
+        ctx.fillStyle = '#FFF0F5'; // LavenderBlush
         ctx.fillRect(0, 0, size, size);
 
-        // Padding (Zoom Out effect)
-        const padding = 150; 
+        // 🔥 FIX 1: Padding 150 se 20 kar di taaki image BADI (zoom-in) dikhe
+        const padding = 20; 
         const drawSize = size - (padding * 2);
 
         // Center align and fit the image
@@ -130,8 +136,8 @@ export default function AddProductPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 py-10 px-4">
-      <div className="max-w-md mx-auto bg-white rounded-[40px] shadow-2xl p-8 border-t-[10px] border-yellow-500">
+    <div className="min-h-screen bg-zinc-950 py-10 px-4 relative">
+      <div className="max-w-md mx-auto bg-white rounded-[40px] shadow-2xl p-8 border-t-[10px] border-yellow-500 relative z-10">
         <h2 className="text-3xl font-black mb-8 uppercase text-center text-zinc-900 italic">Add New Item</h2>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -228,11 +234,19 @@ export default function AddProductPage() {
                 </p>
             )}
             
-            <div className="mt-2">
-              <label className={`cursor-pointer px-10 py-5 rounded-2xl text-xs font-black uppercase inline-block shadow-xl transition-all ${isUploading ? "bg-zinc-300 text-zinc-500 pointer-events-none" : "bg-zinc-900 text-yellow-500 hover:bg-black active:scale-95"}`}>
-                {isUploading ? "Please Wait..." : "📸 Upload Photo / Camera"}
-                <input type="file" onChange={handleFileUpload} hidden accept="image/*" />
-              </label>
+            <div className="mt-2 relative">
+              {/* 🔥 FIX 2: Hidden inputs for Camera and Gallery */}
+              <input type="file" accept="image/*" capture="environment" ref={cameraRef} onChange={handleFileUpload} hidden />
+              <input type="file" accept="image/*" ref={galleryRef} onChange={handleFileUpload} hidden />
+
+              <button 
+                type="button"
+                onClick={() => setShowPicker(true)}
+                disabled={isUploading}
+                className={`px-10 py-5 rounded-2xl text-xs font-black uppercase inline-block shadow-xl transition-all ${isUploading ? "bg-zinc-300 text-zinc-500 pointer-events-none" : "bg-zinc-900 text-yellow-500 hover:bg-black active:scale-95"}`}
+              >
+                {isUploading ? "Please Wait..." : "📸 Upload Photo"}
+              </button>
             </div>
           </div>
           
@@ -241,6 +255,39 @@ export default function AddProductPage() {
           </button>
         </form>
       </div>
+
+      {/* 🔥 FIX 2: Bottom Sheet / Modal for choosing Camera or Gallery */}
+      {showPicker && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm">
+          <div className="bg-white w-full sm:w-[400px] rounded-t-[40px] sm:rounded-[40px] p-8 pb-12 animate-in slide-in-from-bottom duration-300">
+            <h3 className="text-xl font-black uppercase text-center mb-6 text-zinc-800">Select Image Source</h3>
+            <div className="flex flex-col gap-4">
+              <button
+                type="button"
+                onClick={() => { setShowPicker(false); cameraRef.current?.click(); }}
+                className="bg-zinc-900 text-yellow-500 p-5 rounded-3xl font-black uppercase tracking-wider flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-lg hover:shadow-xl"
+              >
+                 📸 Open Camera
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowPicker(false); galleryRef.current?.click(); }}
+                className="bg-yellow-500 text-zinc-900 p-5 rounded-3xl font-black uppercase tracking-wider flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-lg hover:shadow-xl"
+              >
+                 🖼️ Choose from Gallery
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPicker(false)}
+                className="text-zinc-500 p-4 rounded-3xl font-bold uppercase tracking-wider mt-2 hover:bg-zinc-100 transition-colors"
+              >
+                 ❌ Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
