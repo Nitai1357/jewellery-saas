@@ -18,14 +18,13 @@ export default function AddProductPage() {
   
   const [isUploading, setIsUploading] = useState(false);
   
-  // 🔥 NAYA: Camera/Gallery Modal ke states aur refs
   const [showPicker, setShowPicker] = useState(false);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   
   const router = useRouter();
 
-  // 🔥 THE SMART TRICK: Canvas Formatting 🔥
+  // 🔥 THE SMART TRICK: Canvas Formatting (FULL COVER) 🔥
   const formatPremiumImage = (file: File): Promise<File> => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -40,22 +39,16 @@ export default function AddProductPage() {
         canvas.width = size;
         canvas.height = size;
 
-        // Premium Light Pink Background
-        ctx.fillStyle = '#FFF0F5'; // LavenderBlush
-        ctx.fillRect(0, 0, size, size);
-
-        // 🔥 FIX 1: Padding 150 se 20 kar di taaki image BADI (zoom-in) dikhe
-        const padding = 20; 
-        const drawSize = size - (padding * 2);
-
-        // Center align and fit the image
-        const ratio = Math.min(drawSize / img.width, drawSize / img.height);
+        // 🔥 FIX: Padding hata di aur Math.max use kiya taaki photo PURE canvas ko BHAR de!
+        const ratio = Math.max(size / img.width, size / img.height);
         const finalWidth = img.width * ratio;
         const finalHeight = img.height * ratio;
+        
+        // Center align the zoomed image
         const x = (size - finalWidth) / 2;
         const y = (size - finalHeight) / 2;
 
-        // Draw original image over the pink background
+        // Draw original image completely filling the background
         ctx.drawImage(img, x, y, finalWidth, finalHeight);
 
         canvas.toBlob((blob) => {
@@ -76,10 +69,8 @@ export default function AddProductPage() {
     setIsUploading(true); 
 
     try {
-      // 1. Format the image directly in the browser instantly
       const formattedFile = await formatPremiumImage(file);
 
-      // 2. Upload to Cloudinary
       const CLOUD_NAME = "dsbn7qlu9"; 
       const UPLOAD_PRESET = "jewellery_preset"; 
 
@@ -235,7 +226,6 @@ export default function AddProductPage() {
             )}
             
             <div className="mt-2 relative">
-              {/* 🔥 FIX 2: Hidden inputs for Camera and Gallery */}
               <input type="file" accept="image/*" capture="environment" ref={cameraRef} onChange={handleFileUpload} hidden />
               <input type="file" accept="image/*" ref={galleryRef} onChange={handleFileUpload} hidden />
 
@@ -256,7 +246,6 @@ export default function AddProductPage() {
         </form>
       </div>
 
-      {/* 🔥 FIX 2: Bottom Sheet / Modal for choosing Camera or Gallery */}
       {showPicker && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm">
           <div className="bg-white w-full sm:w-[400px] rounded-t-[40px] sm:rounded-[40px] p-8 pb-12 animate-in slide-in-from-bottom duration-300">
