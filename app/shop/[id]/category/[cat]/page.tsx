@@ -4,6 +4,8 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, where, doc } from "firebase/firestore"; 
 import { useParams, useRouter } from "next/navigation";
 import { Search, ShoppingBag, X, Plus, Minus } from "lucide-react";
+// 🔥 NAYA: Link import kiya hai page navigation ke liye
+import Link from "next/link";
 
 // 👑 PREDEFINED LUXURY BRAND THEMES 
 const luxuryThemes = [
@@ -129,10 +131,9 @@ export default function CategoryItems() {
   const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
-    // 🔥 YAHAN PINK GRADIENT ADD KIYA HAI 🔥
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-rose-50 to-pink-100 font-sans relative">
       
-      {/* LUXURY STICKY HEADER - 🔥 TRANSPARENT GLASS EFFECT 🔥 */}
+      {/* LUXURY STICKY HEADER */}
       <div className={`sticky top-0 z-50 bg-white/40 backdrop-blur-md border-b-[3px] ${theme.border} p-4 shadow-sm`}>
         <div className="max-w-6xl mx-auto flex flex-col gap-4">
           <div className="flex justify-between items-center">
@@ -180,46 +181,51 @@ export default function CategoryItems() {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {filteredProducts.map((prod) => (
-              // 🔥 PRODUCT CARD TRANSPARENT EFFECT 🔥
               <div key={prod.id} className="bg-white/80 backdrop-blur-sm rounded-2xl overflow-hidden border border-pink-100 shadow-sm flex flex-col group hover:shadow-xl hover:shadow-pink-200/50 transition-all duration-300">
-                <div className={`aspect-square overflow-hidden relative ${theme.lightBg} p-2`}>
-                  <img src={prod.imageUrl} className="w-full h-full object-cover object-center rounded-xl transform group-hover:scale-105 transition-transform duration-700" alt={prod.name} />
-                  {prod.isTopSeller && <div className={`absolute top-4 left-4 ${theme.bg} ${theme.textOnBg} text-[7px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm`}>Hot</div>}
-                </div>
                 
-                <div className="p-4 flex-grow flex flex-col justify-between">
-                  <div className="mb-4 text-center">
-                    <h4 className="font-bold text-xs md:text-sm uppercase text-zinc-800 tracking-wide mb-1 truncate">{prod.name}</h4>
-                    <p className="text-zinc-500 text-[8px] font-medium tracking-[0.1em] uppercase mb-2">{prod.weight}g • {prod.metalType}</p>
-                    {prod.gst && Number(prod.gst) > 0 ? (
-                      <p className="text-[7px] text-green-600 font-bold uppercase mb-2 text-center">+ {prod.gst}% GST Inc.</p>
-                    ) : (
-                       <div className="h-3 mb-2"></div>
-                    )}
-                    <p className={`text-lg md:text-xl font-bold tracking-wide ${theme.text}`}>₹{calculatePrice(prod, rates).toLocaleString('en-IN')}</p>
+                {/* 🔥 NAYA: Sirf Photo aur Text par Link lagaya hai (Button par nahi) */}
+                <Link href={`/shop/${id}/product/${prod.id}`} className="block flex-grow cursor-pointer">
+                  <div className={`aspect-square overflow-hidden relative ${theme.lightBg} p-2`}>
+                    <img src={prod.imageUrl} className="w-full h-full object-cover object-center rounded-xl transform group-hover:scale-105 transition-transform duration-700" alt={prod.name} />
+                    {prod.isTopSeller && <div className={`absolute top-4 left-4 ${theme.bg} ${theme.textOnBg} text-[7px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm`}>Hot</div>}
                   </div>
                   
-                  <div className="flex flex-col gap-1.5 mt-auto">
-                      <button onClick={() => handleEnquiry(prod)} className="w-full bg-pink-50 hover:bg-pink-100 border border-pink-100 text-pink-700 font-bold text-[8px] py-2.5 rounded-lg uppercase tracking-widest transition-colors">
-                        Enquire
-                      </button>
-                      <div className="flex gap-1.5">
-                          <button onClick={() => handleAddToCart(prod)} className="flex-1 bg-white border border-pink-200 hover:bg-pink-50 text-zinc-800 font-bold text-[8px] py-2.5 rounded-lg uppercase tracking-widest transition-colors">
-                            Cart
-                          </button>
-                          <button onClick={() => handleBuyNow(prod)} className={`flex-1 ${theme.bg} ${theme.hover} ${theme.textOnBg} font-bold text-[8px] py-2.5 rounded-lg uppercase tracking-widest transition-all`}>
-                            Buy
-                          </button>
-                      </div>
+                  <div className="p-4 pb-0 flex flex-col justify-between text-center">
+                      <h4 className="font-bold text-xs md:text-sm uppercase text-zinc-800 tracking-wide mb-1 truncate">{prod.name}</h4>
+                      <p className="text-zinc-500 text-[8px] font-medium tracking-[0.1em] uppercase mb-2">{prod.weight}g • {prod.metalType}</p>
+                      {prod.gst && Number(prod.gst) > 0 ? (
+                        <p className="text-[7px] text-green-600 font-bold uppercase mb-2 text-center">+ {prod.gst}% GST Inc.</p>
+                      ) : (
+                         <div className="h-3 mb-2"></div>
+                      )}
+                      <p className={`text-lg md:text-xl font-bold tracking-wide ${theme.text}`}>₹{calculatePrice(prod, rates).toLocaleString('en-IN')}</p>
                   </div>
+                </Link>
+                
+                {/* 🛒 Buttons wahi hain, isliye seedha kaam karenge */}
+                <div className="p-4 pt-4 mt-auto">
+                    <div className="flex flex-col gap-1.5">
+                        <button onClick={() => handleEnquiry(prod)} className="w-full bg-pink-50 hover:bg-pink-100 border border-pink-100 text-pink-700 font-bold text-[8px] py-2.5 rounded-lg uppercase tracking-widest transition-colors">
+                          Enquire
+                        </button>
+                        <div className="flex gap-1.5">
+                            <button onClick={() => handleAddToCart(prod)} className="flex-1 bg-white border border-pink-200 hover:bg-pink-50 text-zinc-800 font-bold text-[8px] py-2.5 rounded-lg uppercase tracking-widest transition-colors">
+                              Cart
+                            </button>
+                            <button onClick={() => handleBuyNow(prod)} className={`flex-1 ${theme.bg} ${theme.hover} ${theme.textOnBg} font-bold text-[8px] py-2.5 rounded-lg uppercase tracking-widest transition-all`}>
+                              Buy
+                            </button>
+                        </div>
+                    </div>
                 </div>
+
               </div>
             ))}
           </div>
         )} 
       </div>
 
-      {/* 🛍️ SIDEBAR CART DRAWER (Lux Themed) */}
+      {/* 🛍️ SIDEBAR CART DRAWER */}
       {isCartOpen && (
         <div className="fixed inset-0 z-[100] flex justify-end">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsCartOpen(false)} />
