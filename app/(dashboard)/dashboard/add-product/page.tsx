@@ -63,7 +63,7 @@ export default function AddProductPage() {
   };
 
   const handleFileUpload = async (e: any) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true); 
@@ -95,6 +95,8 @@ export default function AddProductPage() {
       alert("Something went wrong during formatting/uploading.");
     } finally {
       setIsUploading(false);
+      // Reset input value to allow uploading the same file/taking another photo sequentially
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -124,6 +126,30 @@ export default function AddProductPage() {
     } catch (err) {
       alert("Database Error!");
     }
+  };
+
+  // 🔥 PREVENT REFRESH HANDLER FOR CAMERA TRIGGER 🔥
+  const triggerCamera = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowPicker(false);
+    // Timeout gives iOS/Android webviews a microtask delay to avoid interrupting active UI threads
+    setTimeout(() => {
+      if (cameraRef.current) {
+        cameraRef.current.click();
+      }
+    }, 100);
+  };
+
+  const triggerGallery = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowPicker(false);
+    setTimeout(() => {
+      if (galleryRef.current) {
+        galleryRef.current.click();
+      }
+    }, 100);
   };
 
   return (
@@ -226,12 +252,16 @@ export default function AddProductPage() {
             )}
             
             <div className="mt-2 relative">
+              {/* Standard capture string formatting avoids attribute dropouts across older OS webviews */}
               <input type="file" accept="image/*" capture="environment" ref={cameraRef} onChange={handleFileUpload} hidden />
               <input type="file" accept="image/*" ref={galleryRef} onChange={handleFileUpload} hidden />
 
               <button 
                 type="button"
-                onClick={() => setShowPicker(true)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setShowPicker(true);
+                }}
                 disabled={isUploading}
                 className={`px-10 py-5 rounded-2xl text-xs font-black uppercase inline-block shadow-xl transition-all ${isUploading ? "bg-zinc-300 text-zinc-500 pointer-events-none" : "bg-zinc-900 text-yellow-500 hover:bg-black active:scale-95"}`}
               >
@@ -253,21 +283,24 @@ export default function AddProductPage() {
             <div className="flex flex-col gap-4">
               <button
                 type="button"
-                onClick={() => { setShowPicker(false); cameraRef.current?.click(); }}
+                onClick={triggerCamera}
                 className="bg-zinc-900 text-yellow-500 p-5 rounded-3xl font-black uppercase tracking-wider flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-lg hover:shadow-xl"
               >
                  📸 Open Camera
               </button>
               <button
                 type="button"
-                onClick={() => { setShowPicker(false); galleryRef.current?.click(); }}
+                onClick={triggerGallery}
                 className="bg-yellow-500 text-zinc-900 p-5 rounded-3xl font-black uppercase tracking-wider flex items-center justify-center gap-3 active:scale-95 transition-transform shadow-lg hover:shadow-xl"
               >
                  🖼️ Choose from Gallery
               </button>
               <button
                 type="button"
-                onClick={() => setShowPicker(false)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setShowPicker(false);
+                }}
                 className="text-zinc-500 p-4 rounded-3xl font-bold uppercase tracking-wider mt-2 hover:bg-zinc-100 transition-colors"
               >
                  ❌ Cancel
