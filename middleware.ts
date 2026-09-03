@@ -15,16 +15,18 @@ export function middleware(req: NextRequest) {
   const url = req.nextUrl;
   const hostname = req.headers.get('host') || '';
 
-  // Agar request "localhost" ya tumhare default "vercel.app" se aa rahi hai, toh rok-tok mat karo
+  // 🔥 YAHAN KARI HAI HUMNE SETTING 🔥
+  // Agar request localhost, vercel app, ya tumhare MAIN DOMAIN se aaye, toh rok-tok mat karo
   if (
     hostname.includes('localhost') ||
-    hostname.includes('jewellery-saas.vercel.app')
+    hostname.includes('jewellery-saas.vercel.app') ||
+    hostname === 'karattech.in' ||
+    hostname === 'www.karattech.in'
   ) {
     return NextResponse.next();
   }
 
-  // 🔥 ASLI JADOO YAHAN HAI 🔥
-  // Agar koi Custom Domain se aaya hai (e.g. www.maakalijewellery.com)
+  // Agar koi aur Client ka Custom Domain se aaya hai (e.g. www.maakalijewellery.com)
   // Toh usko chupchap background mein humare naye "/domain/..." wale page par bhej do
   return NextResponse.rewrite(new URL(`/domain/${hostname}${url.pathname}`, req.url));
 }
