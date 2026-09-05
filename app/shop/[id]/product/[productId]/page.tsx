@@ -81,7 +81,7 @@ export default function ProductDetailsPage() {
         if (savedCart.length > 0) {
           const updatedCart = savedCart.map((item: any) => ({
             ...item,
-            livePrice: calculatePrice(item, latestRates) 
+            livePrice: item.price || calculatePrice(item, latestRates) 
           }));
           setCartItems(updatedCart);
           localStorage.setItem(cartKey, JSON.stringify(updatedCart));
@@ -99,17 +99,19 @@ export default function ProductDetailsPage() {
 
   // 🔥 CART FUNCTIONS
   const handleAddToCart = () => {
-    if (!product) return;
+    if (!product || product.isOutOfStock) return;
     
     const cartKey = `cart_${shopId}`;
     const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
     const existingIndex = currentCart.findIndex((item: any) => item.id === product.id);
     let newCart = [...currentCart];
 
+    const finalPrice = product.price || calculatePrice(product, rates);
+
     if (existingIndex > -1) {
         newCart[existingIndex].quantity += 1;
     } else {
-        newCart.push({ ...product, quantity: 1, livePrice: calculatePrice(product, rates), shopId });
+        newCart.push({ ...product, quantity: 1, livePrice: finalPrice, shopId });
     }
 
     setCartItems(newCart);
@@ -135,9 +137,9 @@ export default function ProductDetailsPage() {
 
   // WhatsApp Enquiry Function
   const handleWhatsAppEnquiry = () => {
-    if (!product) return;
-    const price = calculatePrice(product, rates);
-    const msg = `Namaste, I'm interested in:\n*Item:* ${product.name}\n*Weight:* ${product.weight}g\n*Price:* ₹${price.toLocaleString('en-IN')}\n\nPlease share more details.`;
+    if (!product || product.isOutOfStock) return;
+    const finalPrice = product.price || calculatePrice(product, rates);
+    const msg = `Namaste, I'm interested in:\n*Item:* ${product.name}\n*Weight:* ${product.weight}g\n*Price:* ₹${finalPrice.toLocaleString('en-IN')}\n\nPlease share more details.`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, "_blank");
   };
@@ -159,6 +161,7 @@ export default function ProductDetailsPage() {
   }
 
   const livePrice = calculatePrice(product, rates);
+  const displayPrice = product.price || livePrice;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-rose-50 to-pink-100 pb-20 relative font-sans">
@@ -186,12 +189,18 @@ export default function ProductDetailsPage() {
         <div className="bg-white/80 backdrop-blur-sm rounded-[40px] shadow-xl overflow-hidden flex flex-col md:flex-row border border-pink-100">
           
           {/* 📸 LEFT SIDE: Image Section */}
-          <div className={`w-full md:w-1/2 p-8 md:p-12 flex items-center justify-center ${theme.lightBg}`}>
+          <div className={`w-full md:w-1/2 p-8 md:p-12 flex items-center justify-center relative ${theme.lightBg}`}>
             <img 
               src={product.imageUrl} 
               alt={product.name} 
-              className="w-full max-w-md aspect-square object-cover rounded-3xl shadow-lg border-4 border-white"
+              className={`w-full max-w-md aspect-square object-cover rounded-3xl shadow-lg border-4 border-white transition-all ${product.isOutOfStock ? 'grayscale opacity-80' : ''}`}
             />
+            {/* 🔥 OUT OF STOCK BADGE */}
+            {product.isOutOfStock && (
+              <div className="absolute top-12 left-12 bg-red-600 text-white font-black text-[10px] md:text-xs px-4 py-2 rounded-full tracking-widest uppercase shadow-xl border-2 border-white transform -rotate-12">
+                Sold Out
+              </div>
+            )}
           </div>
 
           {/* 📝 RIGHT SIDE: Details & Actions */}
@@ -201,14 +210,24 @@ export default function ProductDetailsPage() {
               {product.category}
             </span>
 
-            <h1 className="text-3xl md:text-5xl font-black text-zinc-900 uppercase tracking-wide mb-2">
+            <h1 className={`text-3xl md:text-5xl font-black uppercase tracking-wide mb-2 ${product.isOutOfStock ? 'text-zinc-500 line-through' : 'text-zinc-900'}`}>
               {product.name}
             </h1>
             
-            {/* 🔥 LIVE PRICE */}
-            <p className={`text-4xl font-black mb-6 ${theme.text}`}>
-              ₹{livePrice.toLocaleString('en-IN')}
-            </p>
+            {/* 🔥 LIVE PRICE & OFFER */}
+            <div className="mb-6">
+              {product.originalPrice && product.offerPercentage > 0 && (
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="text-lg md:text-xl text-zinc-400 line-through font-bold">₹{Number(product.originalPrice).toLocaleString('en-IN')}</span>
+                  <span className="bg-green-100 text-green-700 border border-green-200 text-[10px] font-black px-2 py-1 rounded shadow-sm uppercase tracking-widest">
+                    {product.offerPercentage}% OFF
+                  </span>
+                </div>
+              )}
+              <p className={`text-4xl font-black ${product.isOutOfStock ? "text-zinc-400" : theme.text}`}>
+                ₹{displayPrice.toLocaleString('en-IN')}
+              </p>
+            </div>
 
             {/* Price Breakdown */}
             <div className="bg-pink-50/50 rounded-2xl p-5 mb-8 border border-pink-100">
@@ -238,17 +257,19 @@ export default function ProductDetailsPage() {
             {/* 🛒 Action Buttons */}
             <div className="flex flex-col gap-4">
               <button 
+                disabled={product.isOutOfStock}
                 onClick={handleAddToCart}
-                className={`w-full ${theme.bg} ${theme.textOnBg} ${theme.hover} py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all`}
+                className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all ${product.isOutOfStock ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed shadow-none border border-zinc-300' : `${theme.bg} ${theme.textOnBg} ${theme.hover} active:scale-95`}`}
               >
-                🛍️ Add to Cart
+                {product.isOutOfStock ? 'Currently Unavailable' : '🛍️ Add to Cart'}
               </button>
               
               <button 
+                disabled={product.isOutOfStock}
                 onClick={handleWhatsAppEnquiry}
-                className="w-full bg-green-500 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-green-600 active:scale-95 transition-all"
+                className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all ${product.isOutOfStock ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed shadow-none border border-zinc-200' : 'bg-green-500 text-white hover:bg-green-600 active:scale-95'}`}
               >
-                💬 Enquire on WhatsApp
+                {product.isOutOfStock ? 'Sold Out' : '💬 Enquire on WhatsApp'}
               </button>
             </div>
 
@@ -260,7 +281,7 @@ export default function ProductDetailsPage() {
         </div>
       </div>
 
-      {/* 🛍️ SIDEBAR CART DRAWER (Exact same as Category Page) */}
+      {/* 🛍️ SIDEBAR CART DRAWER */}
       {isCartOpen && (
         <div className="fixed inset-0 z-[100] flex justify-end">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsCartOpen(false)} />

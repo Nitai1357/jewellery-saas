@@ -113,9 +113,10 @@ export default function CustomerShopPage() {
   };
 
   const handleAddToCart = (prod: any) => {
+    if (prod.isOutOfStock) return;
     const cartKey = `cart_${id}`;
     const cart = JSON.parse(localStorage.getItem(cartKey) || '[]');
-    const finalPrice = calculateLivePrice(prod);
+    const finalPrice = prod.price || calculateLivePrice(prod);
     const existingIndex = cart.findIndex((item: any) => item.id === prod.id);
     
     if(existingIndex > -1) {
@@ -130,12 +131,14 @@ export default function CustomerShopPage() {
   };
 
   const handleBuyNow = (prod: any) => {
+    if (prod.isOutOfStock) return;
     handleAddToCart(prod);
     router.push(`/checkout?shopId=${id}`);
   };
 
   const handleEnquiry = (prod: any) => {
-    const finalPrice = calculateLivePrice(prod);
+    if (prod.isOutOfStock) return;
+    const finalPrice = prod.price || calculateLivePrice(prod);
     const msg = `Namaste ${shopInfo?.shopName || ""}, I am interested in your Elite Collection:\n*Item:* ${prod.name}\n*Weight:* ${prod.weight}g\n*Approx Price:* ₹${finalPrice.toLocaleString('en-IN')}\n\nPlease share more details.`;
     window.open(`https://wa.me/${shopInfo?.whatsapp || ""}?text=${encodeURIComponent(msg)}`, "_blank");
   };
@@ -204,29 +207,63 @@ export default function CustomerShopPage() {
           <div ref={scrollRef} className="flex overflow-x-auto gap-4 md:gap-8 px-6 pb-12 pt-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {products.map((prod) => {
               const livePrice = calculateLivePrice(prod);
+              const displayPrice = prod.price || livePrice;
+
               return (
-                <div key={prod.id} className="min-w-[160px] md:min-w-[240px] max-w-[180px] md:max-w-[260px] bg-white/80 backdrop-blur-sm rounded-3xl overflow-hidden border border-pink-100 shadow-[0_8px_25px_rgba(255,182,193,0.3)] flex flex-col group hover:shadow-[0_15px_35px_rgba(255,182,193,0.5)] transition-all duration-500">
-                  <div className={`aspect-square overflow-hidden relative ${theme.lightBg} p-2 md:p-3`}>
-                    <img src={prod.imageUrl} className="w-full h-full object-cover object-center rounded-2xl transform group-hover:scale-105 transition-transform duration-700" alt={prod.name} />
-                    <div className={`absolute top-4 left-4 ${theme.bg} ${theme.textOnBg} text-[6px] md:text-[8px] font-black px-2 md:px-3 py-1 rounded-full uppercase tracking-widest shadow-md`}>Hot</div>
-                  </div>
+                <div key={prod.id} className={`min-w-[160px] md:min-w-[240px] max-w-[180px] md:max-w-[260px] bg-white/80 backdrop-blur-sm rounded-3xl overflow-hidden border ${prod.isOutOfStock ? 'border-zinc-200' : 'border-pink-100'} shadow-[0_8px_25px_rgba(255,182,193,0.3)] flex flex-col group ${prod.isOutOfStock ? 'opacity-80' : 'hover:shadow-[0_15px_35px_rgba(255,182,193,0.5)]'} transition-all duration-500`}>
+                  
+                  <Link href={`/shop/${id}/product/${prod.id}`} className="block">
+                    <div className={`aspect-square overflow-hidden relative ${theme.lightBg} p-2 md:p-3`}>
+                      <img src={prod.imageUrl} className={`w-full h-full object-cover object-center rounded-2xl transform transition-transform duration-700 ${prod.isOutOfStock ? 'grayscale opacity-90' : 'group-hover:scale-105'}`} alt={prod.name} />
+                      
+                      {/* Dynamic Badge */}
+                      {prod.isOutOfStock ? (
+                        <div className="absolute top-4 left-4 bg-red-600 text-white text-[6px] md:text-[8px] font-black px-2 md:px-3 py-1 rounded-full uppercase tracking-widest shadow-md">Sold Out</div>
+                      ) : (
+                        <div className={`absolute top-4 left-4 ${theme.bg} ${theme.textOnBg} text-[6px] md:text-[8px] font-black px-2 md:px-3 py-1 rounded-full uppercase tracking-widest shadow-md`}>Hot</div>
+                      )}
+                    </div>
+                  </Link>
+
                   <div className="p-3 md:p-5 flex-grow flex flex-col justify-between">
                     <div className="mb-3 md:mb-5 text-center">
-                      <h4 className="font-extrabold text-xs md:text-base uppercase text-zinc-800 tracking-wide mb-1 truncate">{prod.name}</h4>
+                      <h4 className={`font-extrabold text-xs md:text-base uppercase tracking-wide mb-1 truncate ${prod.isOutOfStock ? 'text-zinc-500 line-through' : 'text-zinc-800'}`}>{prod.name}</h4>
                       <p className="text-zinc-500 text-[7px] md:text-[9px] font-bold tracking-[0.1em] uppercase mb-1">{prod.weight}g • {prod.metalType}</p>
+                      
                       {prod.gst && Number(prod.gst) > 0 ? (
                         <p className="text-[6px] md:text-[7px] text-green-600 font-bold uppercase mb-2 text-center">+ {prod.gst}% GST Inc.</p>
                       ) : (
                          <div className="h-2 md:h-3 mb-2"></div>
                       )}
                       
-                      <p className={`text-sm md:text-xl font-black tracking-wide ${theme.text}`}>₹{livePrice.toLocaleString('en-IN')}</p>
+                      {/* Premium Pricing & Offer Display */}
+                      <div className="flex flex-col items-center gap-0.5 md:gap-1 mt-1">
+                        {prod.originalPrice && prod.offerPercentage > 0 && (
+                          <div className="flex items-center gap-1.5 md:gap-2">
+                            <span className="text-zinc-400 line-through text-[9px] md:text-xs font-bold">₹{Number(prod.originalPrice).toLocaleString('en-IN')}</span>
+                            <span className="text-green-600 bg-green-100 border border-green-200 text-[7px] md:text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm uppercase tracking-widest">
+                              {prod.offerPercentage}% OFF
+                            </span>
+                          </div>
+                        )}
+                        <p className={`text-sm md:text-xl font-black tracking-wide ${prod.isOutOfStock ? "text-zinc-400" : theme.text}`}>
+                          ₹{displayPrice.toLocaleString('en-IN')}
+                        </p>
+                      </div>
                     </div>
+
+                    {/* Smart Buttons with Out of Stock Disabling */}
                     <div className="flex flex-col gap-1.5 md:gap-2 mt-auto">
-                        <button onClick={() => handleEnquiry(prod)} className="w-full bg-pink-50 hover:bg-pink-100 border border-pink-200 text-pink-700 font-bold text-[7px] md:text-[9px] py-2 md:py-3 rounded-xl uppercase tracking-widest transition-colors">Enquire Details</button>
+                        <button disabled={prod.isOutOfStock} onClick={() => handleEnquiry(prod)} className={`w-full border font-bold text-[7px] md:text-[9px] py-2 md:py-3 rounded-xl uppercase tracking-widest transition-colors ${prod.isOutOfStock ? 'bg-zinc-100 text-zinc-400 border-zinc-200 cursor-not-allowed' : 'bg-pink-50 hover:bg-pink-100 border-pink-200 text-pink-700'}`}>
+                          {prod.isOutOfStock ? 'Unavailable' : 'Enquire Details'}
+                        </button>
                         <div className="flex gap-1.5 md:gap-2">
-                            <button onClick={() => handleAddToCart(prod)} className="flex-1 bg-white border border-pink-200 hover:border-pink-300 text-zinc-800 font-bold text-[7px] md:text-[9px] py-2 md:py-3 rounded-xl uppercase tracking-widest transition-all">Add to Cart</button>
-                            <button onClick={() => handleBuyNow(prod)} className={`flex-1 ${theme.bg} ${theme.hover} ${theme.textOnBg} font-bold text-[7px] md:text-[9px] py-2 md:py-3 rounded-xl uppercase tracking-widest transition-all shadow-md`}>Buy Now</button>
+                            <button disabled={prod.isOutOfStock} onClick={() => handleAddToCart(prod)} className={`flex-1 border font-bold text-[7px] md:text-[9px] py-2 md:py-3 rounded-xl uppercase tracking-widest transition-all ${prod.isOutOfStock ? 'bg-zinc-50 border-zinc-200 text-zinc-400 cursor-not-allowed' : 'bg-white border-pink-200 hover:border-pink-300 text-zinc-800'}`}>
+                              Add to Cart
+                            </button>
+                            <button disabled={prod.isOutOfStock} onClick={() => handleBuyNow(prod)} className={`flex-1 font-bold text-[7px] md:text-[9px] py-2 md:py-3 rounded-xl uppercase tracking-widest transition-all shadow-md ${prod.isOutOfStock ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed shadow-none' : `${theme.bg} ${theme.hover} ${theme.textOnBg}`}`}>
+                              Buy Now
+                            </button>
                         </div>
                     </div>
                   </div>

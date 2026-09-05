@@ -51,11 +51,13 @@ function CheckoutContent() {
       const extractedShopId = shopId || cartItems[0]?.shopId || "";
       if (!extractedShopId) { alert("Shop details missing!"); return; }
 
-      // 🔥 NAYA LOGIC: Order save karte waqt WEIGHT, GST, aur MAKING bhi bhej rahe hain
+      // 🔥 LOGIC UPDATE: Offer & Original Price added to DB
       const orderItems = cartItems.map(item => ({
         name: item.name || item.productName || "Jewellery Product",
         quantity: Number(item.quantity) || 1,
         price: Number(item.livePrice || item.price || 0),
+        originalPrice: Number(item.originalPrice || 0),
+        offerPercentage: Number(item.offerPercentage || 0),
         weight: Number(item.weight) || 0,
         makingCharge: Number(item.makingCharge) || 0,
         gst: Number(item.gst) || 0,
@@ -142,7 +144,17 @@ function CheckoutContent() {
                 <div key={idx} className="flex justify-between items-center text-sm font-medium">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-zinc-100 rounded-lg overflow-hidden"><img src={item.image || item.imageUrl} className="w-full h-full object-cover mix-blend-multiply" /></div>
-                    <div><span className="text-zinc-800 uppercase text-xs font-bold">{item.name || item.productName}</span><p className="text-[10px] text-zinc-500">Qty: {item.quantity || 1}</p></div>
+                    <div>
+                      <span className="text-zinc-800 uppercase text-xs font-bold">{item.name || item.productName}</span>
+                      <p className="text-[10px] text-zinc-500">Qty: {item.quantity || 1}</p>
+                      {/* 🔥 OFFER PRICE UI IN CHECKOUT */}
+                      {item.originalPrice && item.offerPercentage > 0 && (
+                        <p className="text-[8px] text-green-600 font-bold tracking-widest uppercase mt-0.5">
+                          <span className="line-through text-zinc-400 mr-1">₹{item.originalPrice}</span>
+                          {item.offerPercentage}% OFF
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <span className="text-black font-bold">₹{(Number(item.livePrice || item.price || 0) * (item.quantity || 1)).toLocaleString('en-IN')}</span>
                 </div>

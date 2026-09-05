@@ -17,7 +17,8 @@ export default function CreateBillPage() {
 
   const [customer, setCustomer] = useState({ name: "", phone: "", address: "" });
   const [items, setItems] = useState<any[]>([]);
-  const [newItem, setNewItem] = useState({ name: "", metalType: "22K Gold", weight: "", price: "", makingCharge: "", gst: "3" });
+  // 🔥 LOGIC UPDATE: 'offer' state added
+  const [newItem, setNewItem] = useState({ name: "", metalType: "22K Gold", weight: "", price: "", makingCharge: "", gst: "3", offer: "0" });
   const [paymentMode, setPaymentMode] = useState("Cash");
 
   useEffect(() => {
@@ -37,20 +38,23 @@ export default function CreateBillPage() {
   const handleAddItem = () => {
     if (!newItem.name || !newItem.price) return alert("Please enter Product Name and Metal Value!");
     setItems([...items, { ...newItem, quantity: 1 }]);
-    setNewItem({ name: "", metalType: "22K Gold", weight: "", price: "", makingCharge: "", gst: "3" });
+    setNewItem({ name: "", metalType: "22K Gold", weight: "", price: "", makingCharge: "", gst: "3", offer: "0" });
   };
 
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
   };
 
+  // 🔥 LOGIC UPDATE: Discount calculation included
   const calculateGrandTotal = () => {
     return items.reduce((total, item) => {
       const metalVal = Number(item.price) || 0;
       const making = Number(item.makingCharge) || 0;
       const base = metalVal + making;
-      const gstAmt = base * ((Number(item.gst) || 0) / 100);
-      return total + base + gstAmt;
+      const discountAmount = base * ((Number(item.offer) || 0) / 100);
+      const afterDiscount = base - discountAmount;
+      const gstAmt = afterDiscount * ((Number(item.gst) || 0) / 100);
+      return total + afterDiscount + gstAmt;
     }, 0);
   };
 
@@ -61,33 +65,40 @@ export default function CreateBillPage() {
     const grandTotal = calculateGrandTotal();
 
     try {
-      // 1. Save to Firebase (Online Orders table as a Walk-in Order)
+      // 1. Save to Firebase 
       const orderData = {
         name: customer.name,
         mobile: customer.phone,
         address: customer.address || "Walk-in Customer",
         shopId: currentUserId,
-        items: items.map(i => ({
+        items: items.map(i => {
+          const base = Number(i.price) + Number(i.makingCharge);
+          const discAmt = base * (Number(i.offer)/100);
+          const afterDisc = base - discAmt;
+          const finalItemPrice = afterDisc * (1 + (Number(i.gst)/100));
+          return {
             name: i.name,
             metalType: i.metalType,
             weight: Number(i.weight),
-            price: (Number(i.price) + Number(i.makingCharge)) * (1 + (Number(i.gst)/100)), // Total item price
+            price: finalItemPrice, 
             rawPrice: Number(i.price),
             makingCharge: Number(i.makingCharge),
             gst: Number(i.gst),
+            offerPercentage: Number(i.offer), // Saved to DB
             quantity: 1
-        })),
+          }
+        }),
         totalAmount: grandTotal,
         paymentMode: paymentMode,
         utrNumber: "Walk-in Offline",
-        status: "Completed", // Auto completed for walk-ins
+        status: "Completed",
         orderType: "Walk-in POS",
         createdAt: serverTimestamp(),
       };
 
       const docRef = await addDoc(collection(db, "online_orders"), orderData);
 
-      // 2. Generate PDF (Same as Online Orders logic)
+      // 2. Generate PDF 
       const docPdf = new jsPDF();
       const pageWidth = docPdf.internal.pageSize.getWidth();
       
@@ -138,39 +149,43 @@ export default function CreateBillPage() {
       docPdf.text(`Phone: ${customer.phone}`, 15, 98);
       if(customer.address) docPdf.text(customer.address, 15, 104);
 
+      // 🔥 LOGIC UPDATE: PDF table structure updated to include discount
       const tableRows = items.map((item, index) => {
         const metalVal = Number(item.price) || 0;
         const making = Number(item.makingCharge) || 0;
+        const base = metalVal + making;
+        const offerPercent = Number(item.offer) || 0;
+        const discountAmt = base * (offerPercent / 100);
+        const afterDisc = base - discountAmt;
         const gstPercent = Number(item.gst) || 0;
-        const basePrice = metalVal + making;
-        const gstAmount = basePrice * (gstPercent / 100);
-        const total = basePrice + gstAmount;
+        const gstAmount = afterDisc * (gstPercent / 100);
+        const total = afterDisc + gstAmount;
         
         return [
           index + 1,
           `${item.name}\n(${item.metalType || '-'})`,
           item.weight ? `${item.weight}g` : "-",
-          `Rs. ${metalVal.toLocaleString('en-IN')}`,
-          `Rs. ${making.toLocaleString('en-IN')}`,
-          `${gstPercent}% (Rs. ${Math.round(gstAmount).toLocaleString('en-IN')})`,
+          `Rs. ${base.toLocaleString('en-IN')}`,
+          offerPercent > 0 ? `${offerPercent}% (-Rs.${Math.round(discountAmt)})` : "-",
+          `${gstPercent}%`,
           `Rs. ${Math.round(total).toLocaleString('en-IN')}`
         ];
       });
 
       autoTable(docPdf, {
         startY: 115,
-        head: [['S.No', 'Item Details', 'Weight', 'Metal Value', 'Making Chg', 'GST Applied', 'Total']],
+        head: [['S.No', 'Item Details', 'Weight', 'Base Value', 'Discount', 'GST', 'Total']],
         body: tableRows,
         theme: 'grid',
         headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' }, 
-        styles: { fontSize: 9, cellPadding: 4, textColor: [60, 60, 60], valign: 'middle' },
-        columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { halign: 'left' }, 2: { halign: 'center', cellWidth: 18 }, 3: { halign: 'right', cellWidth: 25 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 30 }, 6: { halign: 'right', fontStyle: 'bold', cellWidth: 30 } }
+        styles: { fontSize: 8.5, cellPadding: 4, textColor: [60, 60, 60], valign: 'middle' },
+        columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { halign: 'left' }, 2: { halign: 'center', cellWidth: 15 }, 3: { halign: 'right', cellWidth: 25 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 15 }, 6: { halign: 'right', fontStyle: 'bold', cellWidth: 30 } }
       });
 
       const finalY = (docPdf as any).lastAutoTable.finalY + 10;
       docPdf.setFontSize(10);
       docPdf.setFont("helvetica", "normal");
-      docPdf.text("Total amount includes all applicable taxes and making charges.", 15, finalY + 5);
+      docPdf.text("Total amount includes all applicable taxes, making charges & discounts.", 15, finalY + 5);
       docPdf.setFontSize(14);
       docPdf.setFont("helvetica", "bold");
       docPdf.setTextColor(0);
@@ -235,11 +250,13 @@ export default function CreateBillPage() {
                 <input type="number" placeholder="Metal Value (₹) *" value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} className="p-4 bg-black border border-zinc-800 rounded-xl text-sm font-bold outline-none focus:border-yellow-500" />
                 
                 <input type="number" placeholder="Making Chg (₹)" value={newItem.makingCharge} onChange={e => setNewItem({...newItem, makingCharge: e.target.value})} className="p-4 bg-black border border-zinc-800 rounded-xl text-sm font-bold outline-none focus:border-yellow-500" />
+                {/* 🔥 LOGIC UPDATE: Offer Input Box */}
+                <input type="number" placeholder="Discount (%)" value={newItem.offer} onChange={e => setNewItem({...newItem, offer: e.target.value})} className="p-4 bg-black border border-zinc-800 border-l-4 border-l-green-500 rounded-xl text-sm font-bold outline-none focus:border-green-500" />
                 <select value={newItem.gst} onChange={e => setNewItem({...newItem, gst: e.target.value})} className="p-4 bg-black border border-zinc-800 rounded-xl text-sm font-bold outline-none focus:border-yellow-500 text-zinc-300">
                   <option value="3">GST: 3%</option><option value="0">GST: 0%</option><option value="1.5">GST: 1.5%</option>
                 </select>
                 
-                <button onClick={handleAddItem} className="md:col-span-3 py-4 bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase text-xs tracking-widest rounded-xl transition-all flex justify-center items-center gap-2">
+                <button onClick={handleAddItem} className="md:col-span-3 py-4 bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase text-xs tracking-widest rounded-xl transition-all flex justify-center items-center gap-2 mt-2">
                   <Plus size={16}/> Add to Bill
                 </button>
               </div>
@@ -257,6 +274,10 @@ export default function CreateBillPage() {
                     <div>
                       <p className="font-bold text-sm text-white uppercase">{item.name}</p>
                       <p className="text-[9px] text-zinc-500 uppercase tracking-widest mt-0.5">{item.weight ? `${item.weight}g • ` : ''}₹{item.price} + ₹{item.makingCharge} Mk + {item.gst}% GST</p>
+                      {/* 🔥 LOGIC UPDATE: Offer UI in Bill preview */}
+                      {Number(item.offer) > 0 && (
+                        <p className="text-[9px] text-green-500 font-bold uppercase mt-1">Discount Applied: {item.offer}% OFF</p>
+                      )}
                     </div>
                     <button onClick={() => handleRemoveItem(idx)} className="text-zinc-600 hover:text-red-500 p-2"><Trash2 size={16}/></button>
                   </div>

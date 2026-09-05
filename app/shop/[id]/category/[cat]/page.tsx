@@ -4,7 +4,6 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, where, doc } from "firebase/firestore"; 
 import { useParams, useRouter } from "next/navigation";
 import { Search, ShoppingBag, X, Plus, Minus } from "lucide-react";
-// 🔥 NAYA: Link import kiya hai page navigation ke liye
 import Link from "next/link";
 
 // 👑 PREDEFINED LUXURY BRAND THEMES 
@@ -63,7 +62,7 @@ export default function CategoryItems() {
         if (savedCart.length > 0) {
           const updatedCart = savedCart.map((item: any) => ({
             ...item,
-            livePrice: calculatePrice(item, latestRates) 
+            livePrice: item.price || calculatePrice(item, latestRates) 
           }));
           setCartItems(updatedCart);
           localStorage.setItem(cartKey, JSON.stringify(updatedCart));
@@ -104,13 +103,16 @@ export default function CategoryItems() {
   };
 
   const handleAddToCart = (p: any) => {
+    if (p.isOutOfStock) return;
     const cartKey = `cart_${id}`;
     const currentCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
     const existingIndex = currentCart.findIndex((item: any) => item.id === p.id);
     let newCart = [...currentCart];
 
+    const finalPrice = p.price || calculatePrice(p, rates);
+
     if (existingIndex > -1) newCart[existingIndex].quantity += 1;
-    else newCart.push({ ...p, quantity: 1, livePrice: calculatePrice(p, rates), shopId: id });
+    else newCart.push({ ...p, quantity: 1, livePrice: finalPrice, shopId: id });
 
     setCartItems(newCart);
     localStorage.setItem(cartKey, JSON.stringify(newCart));
@@ -118,12 +120,14 @@ export default function CategoryItems() {
   };
 
   const handleBuyNow = (p: any) => {
+    if (p.isOutOfStock) return;
     handleAddToCart(p);
     router.push(`/checkout?shopId=${id}`);
   };
 
   const handleEnquiry = (p: any) => {
-    const price = calculatePrice(p, rates);
+    if (p.isOutOfStock) return;
+    const price = p.price || calculatePrice(p, rates);
     const msg = `Namaste, I'm interested in:\n*Item:* ${p.name}\n*Weight:* ${p.weight}g\n*Price:* ₹${price.toLocaleString('en-IN')}\n\nPlease share more details.`;
     window.open(`https://wa.me/910000000000?text=${encodeURIComponent(msg)}`, "_blank");
   };
@@ -180,47 +184,72 @@ export default function CategoryItems() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {filteredProducts.map((prod) => (
-              <div key={prod.id} className="bg-white/80 backdrop-blur-sm rounded-2xl overflow-hidden border border-pink-100 shadow-sm flex flex-col group hover:shadow-xl hover:shadow-pink-200/50 transition-all duration-300">
-                
-                {/* 🔥 NAYA: Sirf Photo aur Text par Link lagaya hai (Button par nahi) */}
-                <Link href={`/shop/${id}/product/${prod.id}`} className="block flex-grow cursor-pointer">
-                  <div className={`aspect-square overflow-hidden relative ${theme.lightBg} p-2`}>
-                    <img src={prod.imageUrl} className="w-full h-full object-cover object-center rounded-xl transform group-hover:scale-105 transition-transform duration-700" alt={prod.name} />
-                    {prod.isTopSeller && <div className={`absolute top-4 left-4 ${theme.bg} ${theme.textOnBg} text-[7px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm`}>Hot</div>}
-                  </div>
+            {filteredProducts.map((prod) => {
+              const livePrice = calculatePrice(prod, rates);
+              const displayPrice = prod.price || livePrice;
+
+              return (
+                <div key={prod.id} className={`bg-white/80 backdrop-blur-sm rounded-2xl overflow-hidden border ${prod.isOutOfStock ? 'border-zinc-200' : 'border-pink-100'} shadow-sm flex flex-col group ${prod.isOutOfStock ? 'opacity-80' : 'hover:shadow-xl hover:shadow-pink-200/50'} transition-all duration-300`}>
                   
-                  <div className="p-4 pb-0 flex flex-col justify-between text-center">
-                      <h4 className="font-bold text-xs md:text-sm uppercase text-zinc-800 tracking-wide mb-1 truncate">{prod.name}</h4>
-                      <p className="text-zinc-500 text-[8px] font-medium tracking-[0.1em] uppercase mb-2">{prod.weight}g • {prod.metalType}</p>
-                      {prod.gst && Number(prod.gst) > 0 ? (
-                        <p className="text-[7px] text-green-600 font-bold uppercase mb-2 text-center">+ {prod.gst}% GST Inc.</p>
-                      ) : (
-                         <div className="h-3 mb-2"></div>
-                      )}
-                      <p className={`text-lg md:text-xl font-bold tracking-wide ${theme.text}`}>₹{calculatePrice(prod, rates).toLocaleString('en-IN')}</p>
-                  </div>
-                </Link>
-                
-                {/* 🛒 Buttons wahi hain, isliye seedha kaam karenge */}
-                <div className="p-4 pt-4 mt-auto">
-                    <div className="flex flex-col gap-1.5">
-                        <button onClick={() => handleEnquiry(prod)} className="w-full bg-pink-50 hover:bg-pink-100 border border-pink-100 text-pink-700 font-bold text-[8px] py-2.5 rounded-lg uppercase tracking-widest transition-colors">
-                          Enquire
-                        </button>
-                        <div className="flex gap-1.5">
-                            <button onClick={() => handleAddToCart(prod)} className="flex-1 bg-white border border-pink-200 hover:bg-pink-50 text-zinc-800 font-bold text-[8px] py-2.5 rounded-lg uppercase tracking-widest transition-colors">
-                              Cart
-                            </button>
-                            <button onClick={() => handleBuyNow(prod)} className={`flex-1 ${theme.bg} ${theme.hover} ${theme.textOnBg} font-bold text-[8px] py-2.5 rounded-lg uppercase tracking-widest transition-all`}>
-                              Buy
-                            </button>
+                  <Link href={`/shop/${id}/product/${prod.id}`} className="block flex-grow cursor-pointer">
+                    <div className={`aspect-square overflow-hidden relative ${theme.lightBg} p-2`}>
+                      <img src={prod.imageUrl} className={`w-full h-full object-cover object-center rounded-xl transform transition-transform duration-700 ${prod.isOutOfStock ? 'grayscale opacity-90' : 'group-hover:scale-105'}`} alt={prod.name} />
+                      
+                      {/* Dynamic Badge */}
+                      {prod.isOutOfStock ? (
+                        <div className="absolute top-4 left-4 bg-red-600 text-white text-[6px] md:text-[8px] font-black px-2 py-1 rounded-full uppercase tracking-widest shadow-md">Sold Out</div>
+                      ) : prod.isTopSeller ? (
+                        <div className={`absolute top-4 left-4 ${theme.bg} ${theme.textOnBg} text-[7px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm`}>Hot</div>
+                      ) : null}
+                    </div>
+                    
+                    <div className="p-4 pb-0 flex flex-col justify-between text-center">
+                        <h4 className={`font-bold text-xs md:text-sm uppercase tracking-wide mb-1 truncate ${prod.isOutOfStock ? 'text-zinc-500 line-through' : 'text-zinc-800'}`}>{prod.name}</h4>
+                        <p className="text-zinc-500 text-[8px] font-medium tracking-[0.1em] uppercase mb-2">{prod.weight}g • {prod.metalType}</p>
+                        
+                        {prod.gst && Number(prod.gst) > 0 ? (
+                          <p className="text-[7px] text-green-600 font-bold uppercase mb-2 text-center">+ {prod.gst}% GST Inc.</p>
+                        ) : (
+                           <div className="h-3 mb-2"></div>
+                        )}
+                        
+                        {/* Premium Pricing & Offer Display */}
+                        <div className="flex flex-col items-center gap-0.5 mt-1">
+                          {prod.originalPrice && prod.offerPercentage > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-zinc-400 line-through text-[8px] md:text-[9px] font-bold">₹{Number(prod.originalPrice).toLocaleString('en-IN')}</span>
+                              <span className="text-green-600 bg-green-100 border border-green-200 text-[6px] md:text-[7px] font-black px-1.5 py-0.5 rounded shadow-sm uppercase tracking-widest">
+                                {prod.offerPercentage}% OFF
+                              </span>
+                            </div>
+                          )}
+                          <p className={`text-lg md:text-xl font-bold tracking-wide ${prod.isOutOfStock ? "text-zinc-400" : theme.text}`}>
+                            ₹{displayPrice.toLocaleString('en-IN')}
+                          </p>
                         </div>
                     </div>
-                </div>
+                  </Link>
+                  
+                  {/* 🛒 Buttons */}
+                  <div className="p-4 pt-4 mt-auto">
+                      <div className="flex flex-col gap-1.5">
+                          <button disabled={prod.isOutOfStock} onClick={() => handleEnquiry(prod)} className={`w-full border font-bold text-[8px] py-2.5 rounded-lg uppercase tracking-widest transition-colors ${prod.isOutOfStock ? 'bg-zinc-100 text-zinc-400 border-zinc-200 cursor-not-allowed' : 'bg-pink-50 hover:bg-pink-100 border-pink-100 text-pink-700'}`}>
+                            {prod.isOutOfStock ? 'Unavailable' : 'Enquire'}
+                          </button>
+                          <div className="flex gap-1.5">
+                              <button disabled={prod.isOutOfStock} onClick={() => handleAddToCart(prod)} className={`flex-1 border font-bold text-[8px] py-2.5 rounded-lg uppercase tracking-widest transition-colors ${prod.isOutOfStock ? 'bg-zinc-50 border-zinc-200 text-zinc-400 cursor-not-allowed' : 'bg-white border-pink-200 hover:bg-pink-50 text-zinc-800'}`}>
+                                Cart
+                              </button>
+                              <button disabled={prod.isOutOfStock} onClick={() => handleBuyNow(prod)} className={`flex-1 font-bold text-[8px] py-2.5 rounded-lg uppercase tracking-widest transition-all ${prod.isOutOfStock ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed shadow-none' : `${theme.bg} ${theme.hover} ${theme.textOnBg}`}`}>
+                                Buy
+                              </button>
+                          </div>
+                      </div>
+                  </div>
 
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         )} 
       </div>

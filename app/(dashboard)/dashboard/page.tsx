@@ -7,7 +7,6 @@ import { collection, onSnapshot, query, orderBy, updateDoc, doc, getDoc, where, 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-// 🔥 NAYA: Receipt icon added below
 import { Menu, X, Plus, Image as ImageIcon, Users, LineChart, Package, LogOut, Globe, Download, TrendingUp, Gift, Receipt } from "lucide-react"; 
 
 export default function FastDashboard() {
@@ -45,6 +44,12 @@ export default function FastDashboard() {
   const [bannersCount, setBannersCount] = useState(0);
   const [isExpired, setIsExpired] = useState(false);
   
+  // 🔥 NAYA: INVENTORY SYSTEM STATES 🔥
+  const [globalOfferPercent, setGlobalOfferPercent] = useState("");
+  const [globalOfferCategory, setGlobalOfferCategory] = useState("All");
+  const [isApplyingOffer, setIsApplyingOffer] = useState(false);
+  const [showOfferPanel, setShowOfferPanel] = useState(false);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -242,6 +247,73 @@ export default function FastDashboard() {
     setShowModal(false);
   };
 
+  // 🔥 NAYA: INVENTORY EXCEL EXPORT 🔥
+  const exportInventoryToExcel = () => {
+    if (allProducts.length === 0) return alert("No inventory available to download!");
+    
+    const excelData = allProducts.map(p => ({
+      "Item Name": p.name || "N/A",
+      "Category": p.category || "N/A",
+      "Metal Type": p.metalType || "N/A",
+      "Weight (g)": p.weight || 0,
+      "Base Price (₹)": p.originalPrice || p.price || 0,
+      "Final Price (₹)": p.price || 0,
+      "Stock Status": p.isOutOfStock ? "SOLD / OUTWARD" : "ACTIVE / INWARD",
+      "Date Added": p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "N/A"
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Stock Inventory");
+    XLSX.writeFile(wb, `${ownerData?.shopName || 'Jewellery'}_Full_Stock_${new Date().toLocaleDateString()}.xlsx`);
+  };
+
+  // 🔥 NAYA: OUT OF STOCK TOGGLE 🔥
+  const handleToggleOutOfStock = async (productId: string, currentStatus: boolean) => {
+    try {
+      await updateDoc(doc(db, "products", productId), {
+        isOutOfStock: !currentStatus,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      alert("Error updating stock status!");
+    }
+  };
+
+  // 🔥 NAYA: GLOBAL BATCH OFFER APPLY 🔥
+  const handleApplyGlobalOffer = async () => {
+    if(!globalOfferPercent) return alert("Bhai pehle Offer Percentage daal do!");
+    setIsApplyingOffer(true);
+    try {
+      const productsToUpdate = globalOfferCategory === "All"
+        ? allProducts
+        : allProducts.filter(p => p.category === globalOfferCategory);
+
+      if(productsToUpdate.length === 0) {
+         setIsApplyingOffer(false);
+         return alert("Is category mein koi product nahi hai!");
+      }
+
+      await Promise.all(productsToUpdate.map(p => {
+         const orig = p.originalPrice || p.price; 
+         const discount = (Number(orig) * Number(globalOfferPercent)) / 100;
+         const newPrice = Math.round(Number(orig) - discount);
+         return updateDoc(doc(db, "products", p.id), {
+           originalPrice: Number(orig),
+           offerPercentage: Number(globalOfferPercent),
+           price: newPrice,
+           updatedAt: new Date().toISOString()
+         });
+      }));
+      alert(`✅ Offer applied successfully to ${productsToUpdate.length} products!`);
+      setGlobalOfferPercent("");
+      setShowOfferPanel(false);
+    } catch(err) {
+      alert("Error applying offer!");
+    }
+    setIsApplyingOffer(false);
+  };
+
   if (!isClient || authLoading) {
     return <div className="h-screen flex items-center justify-center bg-[#0a0a0a] text-yellow-500 font-black tracking-widest animate-pulse">LOADING BRAND...</div>;
   }
@@ -259,6 +331,11 @@ export default function FastDashboard() {
       return matchesSearch && matchesView;
   });
 
+  // 🔥 INVENTORY COUNTS 🔥
+  const totalStock = allProducts.length;
+  const outOfStockCount = allProducts.filter(p => p.isOutOfStock).length;
+  const activeStock = totalStock - outOfStockCount;
+
   return (
     <div className="p-3 md:p-6 lg:p-8 bg-[#0a0a0a] min-h-screen font-sans text-gray-300 relative selection:bg-yellow-500 selection:text-black">
       
@@ -274,7 +351,7 @@ export default function FastDashboard() {
             </p>
             <div className="space-y-4">
                <button onClick={() => router.push('/payment')} className="bg-yellow-500 text-black px-6 py-4 rounded-xl font-black hover:bg-yellow-400 w-full transition-all active:scale-95 uppercase tracking-widest text-xs shadow-[0_0_20px_rgba(234,179,8,0.3)]">
-                  Renew Subscription
+                 Renew Subscription
                 </button>
               <button onClick={() => signOut(auth)} className="block w-full py-4 bg-white/5 hover:bg-white/10 text-white/50 font-bold rounded-xl uppercase text-[10px] border border-white/5 transition-all">
                 Logout Account
@@ -518,28 +595,104 @@ export default function FastDashboard() {
         </>
       ) : (
         /* --- INVENTORY SECTION --- */
-        <div className="max-w-7xl mx-auto space-y-12 md:space-y-16 pb-20 animate-in fade-in duration-700 mt-6">
+        <div className="max-w-7xl mx-auto space-y-8 md:space-y-12 pb-20 animate-in fade-in duration-700 mt-6">
+          
+          {/* 🔥 NAYA: INVENTORY MINI DASHBOARD 🔥 */}
+          <div className="grid grid-cols-3 gap-3 md:gap-6">
+            <div className="bg-gradient-to-br from-blue-500/10 to-[#111] border border-white/5 p-4 md:p-6 rounded-2xl md:rounded-[2rem]">
+              <p className="text-[8px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Total Stock</p>
+              <p className="text-2xl md:text-4xl font-black italic tracking-tighter text-blue-400">{totalStock}</p>
+            </div>
+            <div className="bg-gradient-to-br from-green-500/10 to-[#111] border border-white/5 p-4 md:p-6 rounded-2xl md:rounded-[2rem]">
+              <p className="text-[8px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Inward (Active)</p>
+              <p className="text-2xl md:text-4xl font-black italic tracking-tighter text-green-400">{activeStock}</p>
+            </div>
+            <div className="bg-gradient-to-br from-red-500/10 to-[#111] border border-white/5 p-4 md:p-6 rounded-2xl md:rounded-[2rem]">
+              <p className="text-[8px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Outward (Sold)</p>
+              <p className="text-2xl md:text-4xl font-black italic tracking-tighter text-red-400">{outOfStockCount}</p>
+            </div>
+          </div>
+
           <section>
-            <div className="flex justify-between items-end mb-6 px-2 border-b border-zinc-800 pb-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6 px-2 border-b border-zinc-800 pb-4">
               <div>
                 <h3 className="text-yellow-500 font-black uppercase text-[10px] tracking-[0.3em] mb-1">Full Inventory</h3>
                 <p className="text-white font-black text-2xl md:text-3xl italic uppercase tracking-tighter">All Jewellery</p>
               </div>
-              <Link href="/dashboard/add-product" className="text-[10px] font-black bg-yellow-500 text-black px-5 py-2.5 rounded-full uppercase tracking-widest hover:bg-yellow-400 transition-all shadow-[0_0_15px_rgba(234,179,8,0.2)]">Add New +</Link>
+              
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                {/* 🔥 NAYA: ACTION BUTTONS 🔥 */}
+                <button onClick={() => setShowOfferPanel(!showOfferPanel)} className="flex-1 md:flex-none text-[10px] font-black bg-pink-500/10 border border-pink-500/30 text-pink-500 px-5 py-2.5 rounded-full uppercase tracking-widest hover:bg-pink-500 hover:text-white transition-all">
+                  Apply Offer %
+                </button>
+                <button onClick={exportInventoryToExcel} className="flex-1 md:flex-none text-[10px] font-black bg-green-500/10 border border-green-500/30 text-green-500 px-5 py-2.5 rounded-full uppercase tracking-widest hover:bg-green-500 hover:text-white transition-all flex justify-center items-center gap-2">
+                  <Download size={14} /> Excel
+                </button>
+                <Link href="/dashboard/add-product" className="flex-1 md:flex-none text-center text-[10px] font-black bg-yellow-500 text-black px-5 py-2.5 rounded-full uppercase tracking-widest hover:bg-yellow-400 transition-all shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+                  Add New +
+                </Link>
+              </div>
             </div>
+
+            {/* 🔥 NAYA: GLOBAL OFFER PANEL 🔥 */}
+            {showOfferPanel && (
+              <div className="bg-[#151515] border border-pink-500/20 p-5 rounded-3xl mb-6 animate-in slide-in-from-top-4 duration-300">
+                <div className="flex flex-col md:flex-row gap-4 items-center">
+                  <div className="flex-1 w-full">
+                    <label className="text-[9px] font-black uppercase text-zinc-500 ml-2">Target Category</label>
+                    <select value={globalOfferCategory} onChange={e => setGlobalOfferCategory(e.target.value)} className="w-full bg-black border border-white/10 p-3 rounded-xl outline-none text-xs font-bold mt-1 text-white">
+                      <option value="All">All Categories (Global)</option>
+                      <option value="Rings">Rings</option>
+                      <option value="Earrings">Earrings</option>
+                      <option value="Necklaces">Necklaces</option>
+                      <option value="Bangles">Bangles</option>
+                    </select>
+                  </div>
+                  <div className="flex-1 w-full">
+                    <label className="text-[9px] font-black uppercase text-zinc-500 ml-2">Discount %</label>
+                    <input type="number" placeholder="e.g. 20" value={globalOfferPercent} onChange={e => setGlobalOfferPercent(e.target.value)} className="w-full bg-black border border-white/10 p-3 rounded-xl outline-none text-xs font-bold mt-1 text-white focus:border-pink-500" />
+                  </div>
+                  <div className="flex-1 w-full md:mt-5">
+                    <button onClick={handleApplyGlobalOffer} disabled={isApplyingOffer} className="w-full bg-pink-500 text-white font-black text-[10px] uppercase tracking-widest py-3.5 rounded-xl hover:bg-pink-600 transition-all shadow-[0_0_15px_rgba(236,72,153,0.3)]">
+                      {isApplyingOffer ? "Applying..." : "Launch Campaign 🚀"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {allProducts.length > 0 ? allProducts.map((p) => (
-                <div key={p.id} className="bg-[#111] border border-white/5 p-4 rounded-[2rem] flex items-center justify-between group hover:bg-[#151515] transition-all duration-300">
+                <div key={p.id} className={`bg-[#111] border ${p.isOutOfStock ? 'border-red-500/30 bg-red-950/10' : 'border-white/5'} p-4 rounded-[2rem] flex items-center justify-between group hover:bg-[#151515] transition-all duration-300`}>
                   <div className="flex items-center gap-4">
-                    <img src={p.imageUrl} className="w-14 h-14 rounded-2xl object-cover border border-white/5" />
-                    <div className="truncate max-w-[160px]">
-                      <p className="text-white font-bold text-sm uppercase italic tracking-tight truncate">{p.name}</p>
-                      <p className="text-zinc-500 text-[8px] uppercase tracking-widest mt-1">₹{p.price}</p>
+                    <div className="relative">
+                       <img src={p.imageUrl} className={`w-14 h-14 rounded-2xl object-cover border border-white/5 ${p.isOutOfStock ? 'grayscale' : ''}`} />
+                       {p.offerPercentage > 0 && <span className="absolute -top-2 -left-2 bg-pink-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-md">{p.offerPercentage}%</span>}
+                    </div>
+                    <div className="truncate max-w-[140px]">
+                      <p className={`font-bold text-sm uppercase italic tracking-tight truncate ${p.isOutOfStock ? 'text-zinc-500 line-through' : 'text-white'}`}>{p.name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {p.originalPrice && p.offerPercentage ? (
+                           <p className="text-zinc-600 text-[8px] uppercase tracking-widest line-through">₹{p.originalPrice}</p>
+                        ) : null}
+                        <p className={`text-[9px] uppercase tracking-widest font-black ${p.isOutOfStock ? 'text-red-500' : 'text-yellow-500'}`}>₹{p.price}</p>
+                      </div>
                     </div>
                   </div>
-                  <button onClick={() => handleDeleteItem('products', p.id)} className="bg-red-500/10 hover:bg-red-500 p-3 rounded-xl text-red-500 hover:text-white transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
+                  
+                  {/* 🔥 NAYA: TOGGLE & DELETE WRAPPER 🔥 */}
+                  <div className="flex flex-col items-end gap-2">
+                    <button onClick={() => handleDeleteItem('products', p.id)} className="bg-red-500/5 hover:bg-red-500 p-2 rounded-lg text-red-500 hover:text-white transition-all">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                    <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => handleToggleOutOfStock(p.id, p.isOutOfStock)}>
+                       <span className={`text-[7px] font-black uppercase tracking-widest ${p.isOutOfStock ? 'text-red-500' : 'text-green-500'}`}>{p.isOutOfStock ? 'Sold' : 'Active'}</span>
+                       <div className={`w-6 h-3 flex items-center rounded-full p-0.5 transition-colors ${p.isOutOfStock ? 'bg-red-500/20' : 'bg-green-500/20'}`}>
+                          <div className={`w-2 h-2 rounded-full transition-transform ${p.isOutOfStock ? 'bg-red-500 translate-x-3' : 'bg-green-500 translate-x-0'}`}></div>
+                       </div>
+                    </div>
+                  </div>
+
                 </div>
               )) : (
                 <div className="col-span-full py-16 text-center border-2 border-dashed border-zinc-800 rounded-[3rem] text-zinc-600 font-bold uppercase tracking-widest text-xs">No Products Uploaded.</div>
