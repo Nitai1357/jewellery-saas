@@ -12,9 +12,19 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+
 export const metadata: Metadata = {
-  title: "KaratTech",
-  description: "Manage your jewelry boutique online with ease.",
+  title: "KaratTech | Digital Ecosystem for Jewellers",
+  description: "Advanced SaaS platform for Jewellery businesses. Manage inventory, digital billing, walk-in POS, customer offers, and online sales seamlessly with KaratTech.",
+  keywords: "KaratTech, Jewellery software, POS system for jewellers, digital billing, jewellery inventory management, SaaS, jewelry billing software",
+  openGraph: {
+    title: "KaratTech | Digital Ecosystem for Jewellers",
+    description: "The ultimate billing and inventory software for your jewellery boutique.",
+    url: "https://karattech.in",
+    siteName: "KaratTech",
+    locale: "en_IN",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
