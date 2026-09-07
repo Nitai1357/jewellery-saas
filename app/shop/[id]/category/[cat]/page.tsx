@@ -39,14 +39,25 @@ export default function CategoryItems() {
 
   const theme = getShopTheme(id);
 
+  // 🔥 100% FIXED LIVE PRICE CALCULATOR (WITH GST) 🔥
   const calculatePrice = (p: any, currentRates: any) => {
-    if (!currentRates) return p.price || 0;
-    const weight = Number(p.weight) || 0;
-    const making = Number(p.makingCharge) || 0;
-    if (p.metalType === "Gold 22K") return Math.round((weight * currentRates.gold22k) + making);
-    if (p.metalType === "Gold 24K") return Math.round((weight * currentRates.gold24k) + making);
-    if (p.metalType === "Silver") return Math.round((weight * (currentRates.silver / 1000)) + making);
-    return p.price || 0;
+    let currentRate = 0;
+    
+    if (p.metalType?.includes("Silver")) {
+      currentRate = (currentRates?.silver || 0) / 1000; 
+    } else if (p.metalType?.includes("24K")) {
+      currentRate = currentRates?.gold24k || 0; 
+    } else {
+      currentRate = currentRates?.gold22k || 0; 
+    }
+
+    if (!currentRate || !p.weight) return 0;
+
+    const basePrice = Math.round((Number(p.weight) * currentRate) + (Number(p.makingCharge) || 0));
+    const gstPercent = Number(p.gst) || 0; 
+    const gstAmount = Math.round(basePrice * (gstPercent / 100));
+    
+    return basePrice + gstAmount;
   };
 
   useEffect(() => {
@@ -60,10 +71,14 @@ export default function CategoryItems() {
         const cartKey = `cart_${id}`;
         const savedCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
         if (savedCart.length > 0) {
-          const updatedCart = savedCart.map((item: any) => ({
-            ...item,
-            livePrice: item.price || calculatePrice(item, latestRates) 
-          }));
+          const updatedCart = savedCart.map((item: any) => {
+            // 🔥 FIXED PRIORITY 🔥
+            const livePriceVal = calculatePrice(item, latestRates);
+            return {
+              ...item,
+              livePrice: livePriceVal > 0 ? livePriceVal : item.price 
+            };
+          });
           setCartItems(updatedCart);
           localStorage.setItem(cartKey, JSON.stringify(updatedCart));
         }
@@ -109,7 +124,9 @@ export default function CategoryItems() {
     const existingIndex = currentCart.findIndex((item: any) => item.id === p.id);
     let newCart = [...currentCart];
 
-    const finalPrice = p.price || calculatePrice(p, rates);
+    // 🔥 FIXED PRIORITY 🔥
+    const livePriceVal = calculatePrice(p, rates);
+    const finalPrice = livePriceVal > 0 ? livePriceVal : p.price;
 
     if (existingIndex > -1) newCart[existingIndex].quantity += 1;
     else newCart.push({ ...p, quantity: 1, livePrice: finalPrice, shopId: id });
@@ -127,8 +144,12 @@ export default function CategoryItems() {
 
   const handleEnquiry = (p: any) => {
     if (p.isOutOfStock) return;
-    const price = p.price || calculatePrice(p, rates);
-    const msg = `Namaste, I'm interested in:\n*Item:* ${p.name}\n*Weight:* ${p.weight}g\n*Price:* ₹${price.toLocaleString('en-IN')}\n\nPlease share more details.`;
+    
+    // 🔥 FIXED PRIORITY 🔥
+    const livePriceVal = calculatePrice(p, rates);
+    const finalPrice = livePriceVal > 0 ? livePriceVal : p.price;
+    
+    const msg = `Namaste, I'm interested in:\n*Item:* ${p.name}\n*Weight:* ${p.weight}g\n*Price:* ₹${finalPrice.toLocaleString('en-IN')}\n\nPlease share more details.`;
     window.open(`https://wa.me/910000000000?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
@@ -185,8 +206,10 @@ export default function CategoryItems() {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {filteredProducts.map((prod) => {
-              const livePrice = calculatePrice(prod, rates);
-              const displayPrice = prod.price || livePrice;
+              
+              // 🔥 FIXED PRIORITY 🔥
+              const livePriceVal = calculatePrice(prod, rates);
+              const displayPrice = livePriceVal > 0 ? livePriceVal : prod.price;
 
               return (
                 <div key={prod.id} className={`bg-white/80 backdrop-blur-sm rounded-2xl overflow-hidden border ${prod.isOutOfStock ? 'border-zinc-200' : 'border-pink-100'} shadow-sm flex flex-col group ${prod.isOutOfStock ? 'opacity-80' : 'hover:shadow-xl hover:shadow-pink-200/50'} transition-all duration-300`}>

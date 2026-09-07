@@ -31,7 +31,6 @@ export default function CustomerShopPage() {
   const [banners, setBanners] = useState<any[]>([]); 
   const [products, setProducts] = useState<any[]>([]); 
   
-  // 🚀 NEW STATE FOR METAL TOGGLE FILTER 🚀
   const [metalFilter, setMetalFilter] = useState("All"); 
 
   const [currentBanner, setCurrentBanner] = useState(0);
@@ -108,20 +107,25 @@ export default function CustomerShopPage() {
     }
   }, [banners]);
 
-  // 🔥 YAHAN CHANGE HUA HAI: Silver Rate Logic Added 🔥
+  // 🔥 100% FIXED AUTO-CALCULATION FOR BOTH GOLD & SILVER 🔥
   const calculateLivePrice = (prod: any) => {
     let currentRate = 0;
+    
     if (prod.metalType?.includes("Silver")) {
-      currentRate = rates?.silver; // 🥈 Silver Rate
+      currentRate = (rates?.silver || 0) / 1000; // Silver 1KG rate divided by 1000 to get Per Gram
     } else if (prod.metalType?.includes("24K")) {
-      currentRate = rates?.gold24k; // 🪙 24K Rate
+      currentRate = rates?.gold24k || 0; 
     } else {
-      currentRate = rates?.gold22k; // 🪙 22K Rate
+      currentRate = rates?.gold22k || 0; // Default to 22K Gold
     }
 
-    const basePrice = Math.round((prod.weight * (currentRate || 0)) + (Number(prod.makingCharge) || 0));
+    // Agar live rate nahi hai ya weight nahi hai, toh 0 return karo
+    if (!currentRate || !prod.weight) return 0;
+
+    const basePrice = Math.round((Number(prod.weight) * currentRate) + (Number(prod.makingCharge) || 0));
     const gstPercent = Number(prod.gst) || 0; 
     const gstAmount = Math.round(basePrice * (gstPercent / 100));
+    
     return basePrice + gstAmount;
   };
 
@@ -129,9 +133,12 @@ export default function CustomerShopPage() {
     if (prod.isOutOfStock) return;
     const cartKey = `cart_${id}`;
     const cart = JSON.parse(localStorage.getItem(cartKey) || '[]');
-    const finalPrice = prod.price || calculateLivePrice(prod);
-    const existingIndex = cart.findIndex((item: any) => item.id === prod.id);
     
+    // 🔥 LIVE PRICE FIRST PRIORITY 🔥
+    const livePriceVal = calculateLivePrice(prod);
+    const finalPrice = livePriceVal > 0 ? livePriceVal : prod.price;
+    
+    const existingIndex = cart.findIndex((item: any) => item.id === prod.id);
     if(existingIndex > -1) {
       cart[existingIndex].quantity = (cart[existingIndex].quantity || 1) + 1;
     } else {
@@ -151,12 +158,15 @@ export default function CustomerShopPage() {
 
   const handleEnquiry = (prod: any) => {
     if (prod.isOutOfStock) return;
-    const finalPrice = prod.price || calculateLivePrice(prod);
+    
+    // 🔥 LIVE PRICE FIRST PRIORITY 🔥
+    const livePriceVal = calculateLivePrice(prod);
+    const finalPrice = livePriceVal > 0 ? livePriceVal : prod.price;
+
     const msg = `Namaste ${shopInfo?.shopName || ""}, I am interested in your Elite Collection:\n*Item:* ${prod.name}\n*Weight:* ${prod.weight}g\n*Approx Price:* ₹${finalPrice.toLocaleString('en-IN')}\n\nPlease share more details.`;
     window.open(`https://wa.me/${shopInfo?.whatsapp || ""}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
-  // 🚀 NEW FILTER LOGIC 🚀
   const displayProducts = metalFilter === "All" 
     ? products 
     : products.filter(prod => prod.metalType && prod.metalType.includes(metalFilter));
@@ -221,7 +231,6 @@ export default function CustomerShopPage() {
             <h2 className="font-black uppercase text-zinc-900 text-xl md:text-3xl tracking-[0.2em]">Trending Masterpieces</h2>
             <div className={`h-[3px] w-16 ${theme.bg} mt-2 mb-4`}></div>
             
-            {/* 🚀 NEW GOLD/SILVER TOGGLE SWITCH 🚀 */}
             <div className="bg-white/80 backdrop-blur-sm p-1.5 rounded-full shadow-inner border border-pink-100 flex items-center gap-1 mt-2">
               <button 
                 onClick={() => setMetalFilter("All")} 
@@ -251,8 +260,10 @@ export default function CustomerShopPage() {
           ) : (
             <div ref={scrollRef} className="flex overflow-x-auto gap-4 md:gap-8 px-6 pb-12 pt-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {displayProducts.map((prod) => {
-                const livePrice = calculateLivePrice(prod);
-                const displayPrice = prod.price || livePrice;
+                
+                // 🔥 LIVE PRICE FIRST PRIORITY 🔥
+                const livePriceVal = calculateLivePrice(prod);
+                const displayPrice = livePriceVal > 0 ? livePriceVal : prod.price;
 
                 return (
                   <div key={prod.id} className={`min-w-[160px] md:min-w-[240px] max-w-[180px] md:max-w-[260px] bg-white/80 backdrop-blur-sm rounded-3xl overflow-hidden border ${prod.isOutOfStock ? 'border-zinc-200' : 'border-pink-100'} shadow-[0_8px_25px_rgba(255,182,193,0.3)] flex flex-col group ${prod.isOutOfStock ? 'opacity-80' : 'hover:shadow-[0_15px_35px_rgba(255,182,193,0.5)]'} transition-all duration-500`}>
@@ -261,7 +272,6 @@ export default function CustomerShopPage() {
                       <div className={`aspect-square overflow-hidden relative ${theme.lightBg} p-2 md:p-3`}>
                         <img src={prod.imageUrl} className={`w-full h-full object-cover object-center rounded-2xl transform transition-transform duration-700 ${prod.isOutOfStock ? 'grayscale opacity-90' : 'group-hover:scale-105'}`} alt={prod.name} />
                         
-                        {/* Dynamic Badge */}
                         {prod.isOutOfStock ? (
                           <div className="absolute top-4 left-4 bg-red-600 text-white text-[6px] md:text-[8px] font-black px-2 md:px-3 py-1 rounded-full uppercase tracking-widest shadow-md">Sold Out</div>
                         ) : (
@@ -283,7 +293,6 @@ export default function CustomerShopPage() {
                            <div className="h-2 md:h-3 mb-2"></div>
                         )}
                         
-                        {/* Premium Pricing & Offer Display */}
                         <div className="flex flex-col items-center gap-0.5 md:gap-1 mt-1">
                           {prod.originalPrice && prod.offerPercentage > 0 && (
                             <div className="flex items-center gap-1.5 md:gap-2">
@@ -299,7 +308,6 @@ export default function CustomerShopPage() {
                         </div>
                       </div>
 
-                      {/* Smart Buttons with Out of Stock Disabling */}
                       <div className="flex flex-col gap-1.5 md:gap-2 mt-auto">
                           <button disabled={prod.isOutOfStock} onClick={() => handleEnquiry(prod)} className={`w-full border font-bold text-[7px] md:text-[9px] py-2 md:py-3 rounded-xl uppercase tracking-widest transition-colors ${prod.isOutOfStock ? 'bg-zinc-100 text-zinc-400 border-zinc-200 cursor-not-allowed' : 'bg-pink-50 hover:bg-pink-100 border-pink-200 text-pink-700'}`}>
                             {prod.isOutOfStock ? 'Unavailable' : 'Enquire Details'}

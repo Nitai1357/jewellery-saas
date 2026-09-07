@@ -39,15 +39,25 @@ export default function ProductDetailsPage() {
 
   const theme = getShopTheme(shopId);
 
-  // 🔥 LIVE PRICE CALCULATOR
+  // 🔥 100% FIXED LIVE PRICE CALCULATOR (WITH GST) 🔥
   const calculatePrice = (p: any, currentRates: any) => {
-    if (!currentRates) return p.price || 0;
-    const weight = Number(p.weight) || 0;
-    const making = Number(p.makingCharge) || 0;
-    if (p.metalType === "Gold 22K") return Math.round((weight * currentRates.gold22k) + making);
-    if (p.metalType === "Gold 24K") return Math.round((weight * currentRates.gold24k) + making);
-    if (p.metalType === "Silver") return Math.round((weight * (currentRates.silver / 1000)) + making);
-    return p.price || 0;
+    let currentRate = 0;
+    
+    if (p.metalType?.includes("Silver")) {
+      currentRate = (currentRates?.silver || 0) / 1000; 
+    } else if (p.metalType?.includes("24K")) {
+      currentRate = currentRates?.gold24k || 0; 
+    } else {
+      currentRate = currentRates?.gold22k || 0; 
+    }
+
+    if (!currentRate || !p.weight) return 0;
+
+    const basePrice = Math.round((Number(p.weight) * currentRate) + (Number(p.makingCharge) || 0));
+    const gstPercent = Number(p.gst) || 0; 
+    const gstAmount = Math.round(basePrice * (gstPercent / 100));
+    
+    return basePrice + gstAmount;
   };
 
   useEffect(() => {
@@ -75,14 +85,17 @@ export default function ProductDetailsPage() {
         const latestRates = docSnap.data();
         setRates(latestRates);
 
-        // Update cart prices if rates change
+        // Update cart prices if rates change (FIXED PRIORITY)
         const cartKey = `cart_${shopId}`;
         const savedCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
         if (savedCart.length > 0) {
-          const updatedCart = savedCart.map((item: any) => ({
-            ...item,
-            livePrice: item.price || calculatePrice(item, latestRates) 
-          }));
+          const updatedCart = savedCart.map((item: any) => {
+            const livePriceVal = calculatePrice(item, latestRates);
+            return {
+              ...item,
+              livePrice: livePriceVal > 0 ? livePriceVal : item.price 
+            };
+          });
           setCartItems(updatedCart);
           localStorage.setItem(cartKey, JSON.stringify(updatedCart));
         }
@@ -97,7 +110,7 @@ export default function ProductDetailsPage() {
     return () => unsubRates();
   }, [shopId, productId]);
 
-  // 🔥 CART FUNCTIONS
+  // 🔥 CART FUNCTIONS (FIXED PRIORITY)
   const handleAddToCart = () => {
     if (!product || product.isOutOfStock) return;
     
@@ -106,7 +119,8 @@ export default function ProductDetailsPage() {
     const existingIndex = currentCart.findIndex((item: any) => item.id === product.id);
     let newCart = [...currentCart];
 
-    const finalPrice = product.price || calculatePrice(product, rates);
+    const livePriceVal = calculatePrice(product, rates);
+    const finalPrice = livePriceVal > 0 ? livePriceVal : product.price;
 
     if (existingIndex > -1) {
         newCart[existingIndex].quantity += 1;
@@ -135,10 +149,13 @@ export default function ProductDetailsPage() {
     }
   };
 
-  // WhatsApp Enquiry Function
+  // WhatsApp Enquiry Function (FIXED PRIORITY)
   const handleWhatsAppEnquiry = () => {
     if (!product || product.isOutOfStock) return;
-    const finalPrice = product.price || calculatePrice(product, rates);
+    
+    const livePriceVal = calculatePrice(product, rates);
+    const finalPrice = livePriceVal > 0 ? livePriceVal : product.price;
+
     const msg = `Namaste, I'm interested in:\n*Item:* ${product.name}\n*Weight:* ${product.weight}g\n*Price:* ₹${finalPrice.toLocaleString('en-IN')}\n\nPlease share more details.`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, "_blank");
@@ -160,8 +177,9 @@ export default function ProductDetailsPage() {
     );
   }
 
-  const livePrice = calculatePrice(product, rates);
-  const displayPrice = product.price || livePrice;
+  // 🔥 RENDER PRICE FIXED PRIORITY
+  const livePriceVal = calculatePrice(product, rates);
+  const displayPrice = livePriceVal > 0 ? livePriceVal : product.price;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-rose-50 to-pink-100 pb-20 relative font-sans">
