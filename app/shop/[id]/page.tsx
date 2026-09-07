@@ -108,8 +108,17 @@ export default function CustomerShopPage() {
     }
   }, [banners]);
 
+  // 🔥 YAHAN CHANGE HUA HAI: Silver Rate Logic Added 🔥
   const calculateLivePrice = (prod: any) => {
-    const currentRate = prod.metalType?.includes("24K") ? rates?.gold24k : rates?.gold22k;
+    let currentRate = 0;
+    if (prod.metalType?.includes("Silver")) {
+      currentRate = rates?.silver; // 🥈 Silver Rate
+    } else if (prod.metalType?.includes("24K")) {
+      currentRate = rates?.gold24k; // 🪙 24K Rate
+    } else {
+      currentRate = rates?.gold22k; // 🪙 22K Rate
+    }
+
     const basePrice = Math.round((prod.weight * (currentRate || 0)) + (Number(prod.makingCharge) || 0));
     const gstPercent = Number(prod.gst) || 0; 
     const gstAmount = Math.round(basePrice * (gstPercent / 100));

@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { db, app } from "@/lib/firebase"; 
-import { getAuth } from "firebase/auth"; 
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { getAuth, onAuthStateChanged } from "firebase/auth"; 
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import Link from "next/link";
@@ -14,6 +14,26 @@ export default function UpdatePrice() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const auth = getAuth(app);
+
+  // 🔥 NAYA LOGIC: Page load hote hi purana price database se laayega taaki reset na ho 🔥
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const docSnap = await getDoc(doc(db, "prices", user.uid));
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.gold22k) setR22(data.gold22k);
+            if (data.gold24k) setR24(data.gold24k);
+            if (data.silver) setSilver(data.silver);
+          }
+        } catch (err) {
+          console.error("Error fetching price", err);
+        }
+      }
+    });
+    return () => unsubscribeAuth();
+  }, [auth]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
