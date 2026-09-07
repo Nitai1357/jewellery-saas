@@ -162,10 +162,13 @@ export default function CategoryItems() {
       <div className={`sticky top-0 z-50 bg-white/40 backdrop-blur-md border-b-[3px] ${theme.border} p-4 shadow-sm`}>
         <div className="max-w-6xl mx-auto flex flex-col gap-4">
           <div className="flex justify-between items-center">
-            <button onClick={() => router.back()} className="group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-zinc-900 transition-colors">
+            
+            {/* 🔥 YAHAN PAR HAI MAGIC: router.push(`/shop/${id}#categories`) LAGA DIYA 🔥 */}
+            <button onClick={() => router.push(`/shop/${id}#categories`)} className="group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-zinc-900 transition-colors">
               <span className="bg-white/60 w-8 h-8 flex items-center justify-center rounded-full group-hover:bg-pink-100 transition-all shadow-sm">←</span> 
               Back
             </button>
+            
             <div className="text-right">
                 <h2 className="text-lg font-extrabold uppercase text-zinc-900 tracking-widest">{decodeURIComponent(cat)}</h2>
                 <p className={`text-[8px] font-bold ${theme.text} uppercase tracking-[0.2em]`}>Premium Selection</p>

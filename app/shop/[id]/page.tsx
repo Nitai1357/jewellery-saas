@@ -331,7 +331,7 @@ export default function CustomerShopPage() {
       )}
 
       {/* CATEGORIES GRID */}
-      <div className="px-6 md:px-10 pb-20 max-w-6xl mx-auto w-full pt-8">
+      <div id="categories" className="px-6 md:px-10 pb-20 max-w-6xl mx-auto w-full pt-8">
         <div className="flex items-center justify-center gap-4 mb-10 text-center">
             <h2 className="font-black uppercase text-zinc-900 text-xl md:text-3xl tracking-[0.2em]">Shop by Category</h2>
         </div>
